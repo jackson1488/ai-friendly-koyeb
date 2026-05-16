@@ -1,0 +1,67 @@
+<%- include('partials/header', { title: 'Тикеты поддержки' }) %>
+
+<div class="card">
+    <form method="get" action="/admin/support/tickets">
+      <label>Статус</label>
+      <select class="form-select" name="status">
+        <option value="" <%= !filters.status ? 'selected' : '' %>>Все</option>
+        <option value="OPEN" <%= filters.status === 'OPEN' ? 'selected' : '' %>>OPEN</option>
+        <option value="IN_PROGRESS" <%= filters.status === 'IN_PROGRESS' ? 'selected' : '' %>>IN_PROGRESS</option>
+        <option value="RESOLVED" <%= filters.status === 'RESOLVED' ? 'selected' : '' %>>RESOLVED</option>
+      </select>
+
+      <label>Тип</label>
+      <select class="form-select" name="type">
+        <option value="" <%= !filters.type ? 'selected' : '' %>>Все</option>
+        <option value="TECHNICAL" <%= filters.type === 'TECHNICAL' ? 'selected' : '' %>>TECHNICAL</option>
+        <option value="BAN_APPEAL" <%= filters.type === 'BAN_APPEAL' ? 'selected' : '' %>>BAN_APPEAL</option>
+        <option value="PROBLEM_REPORT" <%= filters.type === 'PROBLEM_REPORT' ? 'selected' : '' %>>PROBLEM_REPORT</option>
+        <option value="OTHER" <%= filters.type === 'OTHER' ? 'selected' : '' %>>OTHER</option>
+      </select>
+
+      <label>Поиск</label>
+      <input class="form-input" name="q" value="<%= filters.q || '' %>" placeholder="текст / username" />
+
+      <button type="submit" class="btn btn-primary">Применить фильтры</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Пользователь</th>
+        <th>Тип</th>
+        <th>Сообщение</th>
+        <th>Статус</th>
+        <th>Создано</th>
+        <th>Действия</th>
+      </tr>
+      <% tickets.forEach((ticket) => { %>
+        <tr>
+          <td><%= ticket.id %></td>
+          <td>
+            <a href="/admin/users/<%= ticket.user.id %>"><%= ticket.user.username %></a>
+            <div class="meta"><%= ticket.user.displayName %></div>
+          </td>
+          <td><%= ticket.type %></td>
+          <td style="max-width:360px; white-space:pre-wrap;"><%= ticket.message %></td>
+          <td><%= ticket.status %></td>
+          <td><%= ticket.createdAt.toISOString() %></td>
+          <td>
+            <form method="post" action="/admin/support/tickets/<%= ticket.id %>">
+              <select class="form-select" name="status">
+                <option value="OPEN" <%= ticket.status === 'OPEN' ? 'selected' : '' %>>OPEN</option>
+                <option value="IN_PROGRESS" <%= ticket.status === 'IN_PROGRESS' ? 'selected' : '' %>>IN_PROGRESS</option>
+                <option value="RESOLVED" <%= ticket.status === 'RESOLVED' ? 'selected' : '' %>>RESOLVED</option>
+              </select>
+              <textarea class="form-textarea" name="adminNote" rows="3" placeholder="Комментарий модератора"><%= ticket.adminNote || '' %></textarea>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
+
+<%- include('partials/footer') %>

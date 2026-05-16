@@ -1,0 +1,7 @@
+-- CreateTable
+CREATE TABLE "IdSequence" (
+    "key" TEXT NOT NULL PRIMARY KEY,
+    "value" BIGINT NOT NULL,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+

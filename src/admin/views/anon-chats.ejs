@@ -1,0 +1,118 @@
+<%- include('partials/header', { title: 'Анонимные чаты' }) %>
+
+<div class="card">
+  <form method="get" action="/admin/anon-chats" class="form-row" style="gap:10px; align-items:flex-end;">
+    <div class="form-group" style="min-width:180px;">
+      <label class="form-label">Статус</label>
+      <select class="form-select" name="status">
+        <option value="" <%= !filters.status ? 'selected' : '' %>>Все</option>
+        <option value="ACTIVE" <%= filters.status === 'ACTIVE' ? 'selected' : '' %>>ACTIVE</option>
+        <option value="ENDED" <%= filters.status === 'ENDED' ? 'selected' : '' %>>ENDED</option>
+      </select>
+    </div>
+    <div class="form-group" style="flex:1;">
+      <label class="form-label">Поиск</label>
+      <input class="form-input" name="q" value="<%= filters.q || '' %>" placeholder="session id, username, displayName" />
+    </div>
+    <button type="submit" class="btn btn-primary" style="height:38px;">Фильтр</button>
+  </form>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Сессий</div>
+    <div class="stat-value accent"><%= sessions.length %></div>
+    <div class="stat-sub">в выборке</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Активных</div>
+    <div class="stat-value warning"><%= sessions.filter((s) => s.status === 'ACTIVE').length %></div>
+    <div class="stat-sub">прямо сейчас</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">С жалобами</div>
+    <div class="stat-value danger"><%= sessions.filter((s) => (s.reportsCount || 0) > 0).length %></div>
+    <div class="stat-sub">модерация требуется</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Список анонимных сессий</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Сессия</th>
+          <th>Участник A</th>
+          <th>Участник B</th>
+          <th>Статус</th>
+          <th>Сообщения</th>
+          <th>Скрытия</th>
+          <th>Жалобы</th>
+          <th>Старт</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!sessions.length) { %>
+          <tr>
+            <td colspan="9" style="text-align:center; color:var(--text-faint); padding:24px;">Сессии не найдены</td>
+          </tr>
+        <% } %>
+        <% sessions.forEach((item) => { %>
+          <tr>
+            <td>
+              <div style="font-family:monospace; font-size:12px; color:var(--text-muted);"><%= item.id %></div>
+              <div class="badge badge-muted" style="margin-top:4px;"><%= item.mode %></div>
+            </td>
+            <td>
+              <a href="/admin/users/<%= item.userA.id %>" class="table-link"><%= item.userA.username %></a>
+              <div style="font-size:12px; color:var(--text-faint);"><%= item.userA.displayName %></div>
+              <% if (item.userA.isBlocked) { %><div class="badge badge-danger" style="margin-top:4px;">blocked</div><% } %>
+              <% if (item.userA.isDeleted) { %><div class="badge badge-warning" style="margin-top:4px;">deleted</div><% } %>
+              <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">role: <%= item.roles.roleA %></div>
+            </td>
+            <td>
+              <a href="/admin/users/<%= item.userB.id %>" class="table-link"><%= item.userB.username %></a>
+              <div style="font-size:12px; color:var(--text-faint);"><%= item.userB.displayName %></div>
+              <% if (item.userB.isBlocked) { %><div class="badge badge-danger" style="margin-top:4px;">blocked</div><% } %>
+              <% if (item.userB.isDeleted) { %><div class="badge badge-warning" style="margin-top:4px;">deleted</div><% } %>
+              <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">role: <%= item.roles.roleB %></div>
+            </td>
+            <td>
+              <% if (item.status === 'ACTIVE') { %>
+                <span class="badge badge-warning">ACTIVE</span>
+              <% } else { %>
+                <span class="badge badge-muted">ENDED</span>
+              <% } %>
+            </td>
+            <td><%= item._count.messages %></td>
+            <td>
+              <% if ((item.hiddenForUsersCount || 0) > 0) { %>
+                <span class="badge badge-warning"><%= item.hiddenForUsersCount %></span>
+                <% if (item.lastHiddenAt) { %>
+                  <div style="font-size:11px; color:var(--text-faint); margin-top:4px;"><%= item.lastHiddenAt.toISOString().slice(0,16).replace('T',' ') %></div>
+                <% } %>
+              <% } else { %>
+                <span style="color:var(--text-faint);">0</span>
+              <% } %>
+            </td>
+            <td>
+              <% if ((item.reportsCount || 0) > 0) { %>
+                <span class="badge badge-danger"><%= item.reportsCount %></span>
+              <% } else { %>
+                <span style="color:var(--text-faint);">0</span>
+              <% } %>
+            </td>
+            <td style="font-size:12px; color:var(--text-faint);"><%= item.startedAt.toISOString().slice(0,16).replace('T',' ') %></td>
+            <td>
+              <a class="btn btn-sm btn-primary" href="/admin/anon-chats/<%= item.id %>">Открыть</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,51 @@
+<%- include('partials/header', { title: 'Уровни ИИ' }) %>
+
+<p class="meta" style="margin-bottom:16px;">Вы вошли как <%= admin.username %></p>
+
+  <% levels.forEach((level) => { %>
+    <div class="card">
+      <form method="post" action="/admin/levels/<%= level.id %>">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+          <div>
+            <h3 style="margin:0;"><%= level.emoji %> <%= level.name %></h3>
+            <span class="meta" style="font-family:monospace; font-size:12px;"><%= level.key %></span>
+            <p style="font-size:13px; color:var(--text-faint); margin-top:4px;"><%= level.description %></p>
+          </div>
+        </div>
+
+        <label class="form-label">Primary model (Основная)</label>
+        <select class="form-select" name="primaryModel" required style="margin-bottom: 12px; font-family: monospace;">
+          <% availableModels.forEach(m => { %>
+            <option value="<%= m.modelId %>" <%= level.primaryModel === m.modelId ? 'selected' : '' %>>
+              <%= m.isWorking ? '✅' : '❌' %> <%= m.name %> (<%= m.modelId %>)
+            </option>
+          <% }) %>
+          <% if (!availableModels.find(m => m.modelId === level.primaryModel)) { %>
+            <option value="<%= level.primaryModel %>" selected>⚠️ <%= level.primaryModel %> (не в базе)</option>
+          <% } %>
+        </select>
+
+        <label class="form-label">Fallback model (Резервная)</label>
+        <select class="form-select" name="fallbackModel" required style="margin-bottom: 16px; font-family: monospace;">
+          <option value="">-- Нет --</option>
+          <% availableModels.forEach(m => { %>
+            <option value="<%= m.modelId %>" <%= level.fallbackModel === m.modelId ? 'selected' : '' %>>
+              <%= m.isWorking ? '✅' : '❌' %> <%= m.name %> (<%= m.modelId %>)
+            </option>
+          <% }) %>
+          <% if (level.fallbackModel && !availableModels.find(m => m.modelId === level.fallbackModel)) { %>
+            <option value="<%= level.fallbackModel %>" selected>⚠️ <%= level.fallbackModel %> (не в базе)</option>
+          <% } %>
+        </select>
+
+        <label class="checkbox-row" style="display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:14px; cursor:pointer;">
+          <input type="checkbox" name="isActive" value="true" <%= level.isActive ? 'checked' : '' %> style="width:18px;height:18px;cursor:pointer;" />
+          Уровень активен
+        </label>
+
+        <button type="submit" class="btn btn-primary">Сохранить уровень</button>
+      </form>
+    </div>
+  <% }) %>
+
+<%- include('partials/footer') %>

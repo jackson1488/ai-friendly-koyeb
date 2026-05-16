@@ -1,0 +1,94 @@
+<%- include('partials/header', { title: 'Просмотр памяти' }) %>
+
+<a href="/admin/users/<%= user.id %>" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  К профилю пользователя
+</a>
+
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+  <div>
+    <h2 class="card-title" style="margin:0;">Подсистема памяти</h2>
+    <div style="font-size:12px; color:var(--text-faint); margin-top:4px;">Пользователь: @<%= user.username %></div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <form method="post" action="/admin/users/<%= user.id %>/memory/rebuild" style="margin:0;">
+      <input type="hidden" name="redirectTo" value="/admin/memory/<%= user.id %>" />
+      <button type="submit" class="btn btn-primary" data-confirm="Пересобрать память пользователя по всем сессиям?">Обновить память</button>
+    </form>
+    <form method="post" action="/admin/memory/<%= user.id %>/clear" style="margin:0;">
+      <input type="hidden" name="type" value="old" />
+      <button type="submit" class="btn btn-secondary" data-confirm="Удалить сводки старше 30 дней? Факты останутся.">Очистить старое</button>
+    </form>
+    <form method="post" action="/admin/memory/<%= user.id %>/clear" style="margin:0;">
+      <input type="hidden" name="type" value="profile" />
+      <button type="submit" class="btn btn-secondary" data-confirm="Сбросить профиль юзера?">Сбросить профиль</button>
+    </form>
+    <form method="post" action="/admin/memory/<%= user.id %>/clear" style="margin:0;">
+      <input type="hidden" name="type" value="all" />
+      <button type="submit" class="btn btn-danger" data-confirm="Удалить ВСЕ факты и сводки для этого пользователя?">Стереть всё</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Психологический профиль (JSON)</h2>
+  <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; overflow-x:auto;">
+    <pre style="margin:0; font-family:'Menlo','Monaco',monospace; font-size:12px; color:var(--text-muted);"><%= profileJsonPretty %></pre>
+  </div>
+</div>
+
+  <div class="card">
+    <h2>SessionSummary</h2>
+    <% if (!summaries.length) { %>
+      <p class="hint">Сводок пока нет.</p>
+    <% } %>
+    <% summaries.forEach((item) => { %>
+      <div style="margin-bottom:16px; border-bottom:1px solid #283040; padding-bottom:12px;">
+        <div class="meta"><%= item.createdAt.toISOString() %></div>
+        <pre><%= typeof item.parsedSummary === 'string' ? item.parsedSummary : JSON.stringify(item.parsedSummary, null, 2) %></pre>
+      </div>
+    <% }) %>
+  </div>
+
+<div class="card">
+  <h2 class="card-title">UserFacts (База знаний о юзере)</h2>
+  <% if (!Object.keys(groupedFacts).length) { %>
+    <p style="color:var(--text-faint); font-size:13px;">Факты пока не извлечены нейросетью.</p>
+  <% } %>
+
+  <% Object.keys(groupedFacts).forEach((category) => { %>
+    <h3 style="font-size:13px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:8px; margin-top:24px; margin-bottom:12px;"><%= category %></h3>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Факт (detail)</th>
+            <th>Эмоц. вес</th>
+            <th>Отслеживать</th>
+            <th>Дата проверки</th>
+            <th>Архив</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% groupedFacts[category].forEach((fact) => { %>
+            <tr>
+              <td><%= fact.detail %></td>
+              <td><span class="badge badge-muted"><%= fact.emotionalWeight %></span></td>
+              <td>
+                <% if(fact.shouldFollowup) { %>
+                  <span class="badge badge-accent">Да</span>
+                <% } else { %>
+                  <span style="color:var(--text-faint); font-size:12px;">Нет</span>
+                <% } %>
+              </td>
+              <td style="color:var(--text-faint); font-size:12px;"><%= fact.followupDate ? fact.followupDate.toISOString().split('T')[0] : '-' %></td>
+              <td><%= fact.archived ? 'Да' : 'Нет' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% }) %>
+</div>
+
+<%- include('partials/footer') %>

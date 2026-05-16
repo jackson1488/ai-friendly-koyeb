@@ -1,0 +1,276 @@
+<%- include('partials/header', { title: 'PRO контроль пользователя — ' + user.username }) %>
+
+<%
+  const effective = userProEffective || {};
+  const limits = (effective.limits && typeof effective.limits === 'object') ? effective.limits : {};
+  const override = (userProOverride && typeof userProOverride === 'object') ? userProOverride : null;
+  const features = (effective && typeof effective === 'object') ? effective : {};
+  const maxFileAnalyzeMb = Math.max(1, Math.round((Number(limits.maxFileAnalyzeBytes) || 8 * 1024 * 1024) / (1024 * 1024)));
+  const maxVoiceAudioMb = Math.max(1, Math.round((Number(limits.maxVoiceAudioBase64Chars) || 20 * 1024 * 1024) / (1024 * 1024)));
+  const maxImageAnalysesPerDay = Math.max(1, Number(limits.maxImageAnalysesPerDay) || 40);
+  const maxImageGenerationsPerDay = Math.max(1, Number(limits.maxImageGenerationsPerDay) || 5);
+  const maxImageEditsPerDay = Math.max(1, Number(limits.maxImageEditsPerDay) || 20);
+  const maxVideoGenerationsPerDay = Math.max(1, Number(limits.maxVideoGenerationsPerDay) || 5);
+  const maxVoiceMessagesPerDay = Math.max(1, Number(limits.maxVoiceMessagesPerDay) || 80);
+  const maxVoiceRealtimeSessionsPerDay = Math.max(1, Number(limits.maxVoiceRealtimeSessionsPerDay) || 60);
+  const maxFileAnalysesPerDay = Math.max(1, Number(limits.maxFileAnalysesPerDay) || 30);
+  const accessValue = override?.access || 'inherit';
+%>
+
+<a href="/admin/users/<%= user.id %>" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  К карточке пользователя
+</a>
+
+<div class="admin-page-head">
+  <h1 class="admin-page-title">PRO контроль: <%= user.displayName %></h1>
+  <p class="admin-page-subtitle">
+    Отдельный раздел для доступа и лимитов конкретного пользователя.
+  </p>
+</div>
+
+<div class="admin-pill-nav">
+  <a href="/admin/users/<%= user.id %>" class="admin-pill-link">Обзор</a>
+  <a href="/admin/users/<%= user.id %>/security" class="admin-pill-link">Безопасность</a>
+  <a href="/admin/users/<%= user.id %>/pro" class="admin-pill-link active">PRO</a>
+  <a href="/admin/pro-config/general" class="admin-pill-link">Глобальный PRO конфиг</a>
+</div>
+
+<div class="admin-kpi-grid">
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Глобальный PRO</div>
+    <div class="admin-kpi-value"><%= proConfig.enabled ? 'Включен' : 'Выключен' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Текущий доступ пользователя</div>
+    <div class="admin-kpi-value"><%= userProAllowed ? 'Разрешен' : 'Запрещен' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Режим override</div>
+    <div class="admin-kpi-value"><%= accessValue === 'inherit' ? 'Наследовать' : accessValue === 'allow' ? 'Принудительно разрешить' : 'Принудительно запретить' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Access mode</div>
+    <div class="admin-kpi-value"><%= proConfig.accessMode === 'all' ? 'all' : 'allowlist' %></div>
+  </div>
+</div>
+
+<div class="admin-split-layout">
+  <div class="admin-split-stack">
+    <div class="card">
+      <h2 class="card-title">Быстрое включение/выключение PRO</h2>
+      <p class="hint">Эта кнопка управляет только access override для пользователя.</p>
+      <form method="post" action="/admin/users/<%= user.id %>/pro-access">
+        <input type="hidden" name="redirectTo" value="/admin/users/<%= user.id %>/pro" />
+        <input type="hidden" name="enabled" value="<%= userProAllowed ? 'false' : 'true' %>" />
+        <button type="submit" class="btn <%= userProAllowed ? 'btn-secondary' : 'btn-primary' %>" style="width:100%; justify-content:center;">
+          <%= userProAllowed ? 'Отключить PRO пользователю' : 'Выдать PRO пользователю' %>
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Тонкая настройка override</h2>
+      <form method="post" action="/admin/users/<%= user.id %>/pro-override">
+        <input type="hidden" name="redirectTo" value="/admin/users/<%= user.id %>/pro" />
+
+        <div class="form-group">
+          <label>Доступ</label>
+          <select class="form-select" name="access">
+            <option value="inherit" <%= accessValue === 'inherit' ? 'selected' : '' %>>Наследовать глобальные правила</option>
+            <option value="allow" <%= accessValue === 'allow' ? 'selected' : '' %>>Принудительно разрешить</option>
+            <option value="deny" <%= accessValue === 'deny' ? 'selected' : '' %>>Принудительно запретить</option>
+          </select>
+        </div>
+
+        <div class="pro-grid-2">
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="imageAnalysisEnabled" value="true" <%= features.imageAnalysisEnabled ? 'checked' : '' %> />
+            Анализ изображений
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="imageGenerationEnabled" value="true" <%= features.imageGenerationEnabled ? 'checked' : '' %> />
+            Генерация изображений
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="imageEditingEnabled" value="true" <%= features.imageEditingEnabled ? 'checked' : '' %> />
+            Редактирование изображений
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="videoGenerationEnabled" value="true" <%= features.videoGenerationEnabled ? 'checked' : '' %> />
+            Генерация видео
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="voiceMessagesEnabled" value="true" <%= features.voiceMessagesEnabled ? 'checked' : '' %> />
+            Голосовые сообщения
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="voiceRealtimeEnabled" value="true" <%= features.voiceRealtimeEnabled ? 'checked' : '' %> />
+            Realtime голос
+          </label>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="fileAnalysisEnabled" value="true" <%= features.fileAnalysisEnabled ? 'checked' : '' %> />
+            Анализ вложений
+          </label>
+        </div>
+
+        <div class="pro-grid-2">
+          <div class="form-group">
+            <label>maxOutputTokens</label>
+            <input class="form-input" type="number" min="128" max="8192" name="maxOutputTokens" value="<%= limits.maxOutputTokens %>" />
+          </div>
+          <div class="form-group">
+            <label>maxMessagesPerRequest</label>
+            <input class="form-input" type="number" min="1" max="120" name="maxMessagesPerRequest" value="<%= limits.maxMessagesPerRequest %>" />
+          </div>
+          <div class="form-group">
+            <label>maxFileAnalyze (MB)</label>
+            <input class="form-input" type="number" min="1" max="20" name="maxFileAnalyzeMb" value="<%= maxFileAnalyzeMb %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVoicePayload (MB)</label>
+            <input class="form-input" type="number" min="1" max="20" name="maxVoiceAudioMb" value="<%= maxVoiceAudioMb %>" />
+          </div>
+          <div class="form-group">
+            <label>maxImagePromptChars</label>
+            <input class="form-input" type="number" min="200" max="12000" name="maxImagePromptChars" value="<%= limits.maxImagePromptChars %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVideoPromptChars</label>
+            <input class="form-input" type="number" min="200" max="12000" name="maxVideoPromptChars" value="<%= limits.maxVideoPromptChars %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVideoDurationSeconds</label>
+            <input class="form-input" type="number" min="1" max="180" name="maxVideoDurationSeconds" value="<%= limits.maxVideoDurationSeconds %>" />
+          </div>
+          <div class="form-group">
+            <label>maxImageAnalysesPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxImageAnalysesPerDay" value="<%= maxImageAnalysesPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxImageGenerationsPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxImageGenerationsPerDay" value="<%= maxImageGenerationsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxImageEditsPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxImageEditsPerDay" value="<%= maxImageEditsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVideoGenerationsPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxVideoGenerationsPerDay" value="<%= maxVideoGenerationsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVoiceMessagesPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxVoiceMessagesPerDay" value="<%= maxVoiceMessagesPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxVoiceRealtimeSessionsPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxVoiceRealtimeSessionsPerDay" value="<%= maxVoiceRealtimeSessionsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>maxFileAnalysesPerDay</label>
+            <input class="form-input" type="number" min="1" max="5000" name="maxFileAnalysesPerDay" value="<%= maxFileAnalysesPerDay %>" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить override</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-split-stack">
+    <div class="card">
+      <h2 class="card-title">Эффективные функции</h2>
+      <div class="status-row">
+        <div class="status-label">Изображения (анализ):</div>
+        <div class="status-value"><%= features.imageAnalysisEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Изображения (генерация):</div>
+        <div class="status-value"><%= features.imageGenerationEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Изображения (редактирование):</div>
+        <div class="status-value"><%= features.imageEditingEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Видео генерация:</div>
+        <div class="status-value"><%= features.videoGenerationEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Голосовые сообщения:</div>
+        <div class="status-value"><%= features.voiceMessagesEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Realtime голос:</div>
+        <div class="status-value"><%= features.voiceRealtimeEnabled ? 'on' : 'off' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Анализ вложений:</div>
+        <div class="status-value"><%= features.fileAnalysisEnabled ? 'on' : 'off' %></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Эффективные лимиты</h2>
+      <div class="status-row">
+        <div class="status-label">maxOutputTokens:</div>
+        <div class="status-value"><%= limits.maxOutputTokens %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxMessagesPerRequest:</div>
+        <div class="status-value"><%= limits.maxMessagesPerRequest %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxFileAnalyzeBytes:</div>
+        <div class="status-value"><%= limits.maxFileAnalyzeBytes %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVoiceAudioBase64Chars:</div>
+        <div class="status-value"><%= limits.maxVoiceAudioBase64Chars %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxImagePromptChars:</div>
+        <div class="status-value"><%= limits.maxImagePromptChars %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVideoPromptChars:</div>
+        <div class="status-value"><%= limits.maxVideoPromptChars %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVideoDurationSeconds:</div>
+        <div class="status-value"><%= limits.maxVideoDurationSeconds %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxImageAnalysesPerDay:</div>
+        <div class="status-value"><%= limits.maxImageAnalysesPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxImageGenerationsPerDay:</div>
+        <div class="status-value"><%= limits.maxImageGenerationsPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxImageEditsPerDay:</div>
+        <div class="status-value"><%= limits.maxImageEditsPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVideoGenerationsPerDay:</div>
+        <div class="status-value"><%= limits.maxVideoGenerationsPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVoiceMessagesPerDay:</div>
+        <div class="status-value"><%= limits.maxVoiceMessagesPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxVoiceRealtimeSessionsPerDay:</div>
+        <div class="status-value"><%= limits.maxVoiceRealtimeSessionsPerDay %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">maxFileAnalysesPerDay:</div>
+        <div class="status-value"><%= limits.maxFileAnalysesPerDay %></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

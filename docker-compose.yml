@@ -1,0 +1,13 @@
+﻿services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./.data:/data
+      - ./uploads:/app/uploads
+    restart: unless-stopped

@@ -1,0 +1,717 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MessageRole {
+  USER      @map("user")
+  ASSISTANT @map("assistant")
+  SYSTEM    @map("system")
+}
+
+enum BanLevel {
+  WARNING
+  SOFT
+  HARD
+  PERMANENT
+}
+
+enum BanScope {
+  ANON
+  GLOBAL
+}
+
+enum AppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SupportTicketType {
+  TECHNICAL
+  BAN_APPEAL
+  PROBLEM_REPORT
+  OTHER
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  ENDED
+}
+
+enum ChatSessionEndedBy {
+  USER
+  ADMIN
+  TIMEOUT
+  DISCONNECT
+  BANNED
+}
+
+enum InboxItemType {
+  TEST
+  NEWS
+  SYSTEM
+}
+
+enum InboxScope {
+  GLOBAL
+  USER
+  SEGMENT
+}
+
+enum InboxPublishStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  CANCELED
+}
+
+enum InboxUserState {
+  UNREAD
+  SEEN
+  SKIPPED
+  COMPLETED
+  DISMISSED
+}
+
+enum InboxPushState {
+  PENDING
+  SENT
+  FAILED
+  SUPPRESSED
+}
+
+enum LegalDocumentType {
+  PRIVACY_POLICY
+  TERMS_OF_SERVICE
+}
+
+model User {
+  id              String          @id @default(cuid())
+  publicId        String?         @unique
+  username        String          @unique
+  displayName     String
+  passwordHash    String
+  role            UserRole        @default(USER)
+  isBlocked       Boolean         @default(false)
+  isDeleted       Boolean         @default(false)
+  deletedAt       DateTime?
+  deletedReason   String?
+  sessionVersion  Int             @default(0)
+  theme           String?         @default("dark")
+  avatar          String?
+  age             Int?
+  goals           String?         @default("[]")  // JSON array of strings
+  termsAcceptedAt DateTime
+  termsVersion    String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Cloud password
+  cloudPasswordHash        String?
+  cloudPasswordSetAt       DateTime?
+  cloudPasswordAttempts    Int       @default(0)
+  cloudPasswordLockedUntil DateTime?
+
+  refreshTokens   RefreshToken[]
+  loginEvents     LoginEvent[]
+  chats           Chat[]
+  proChats        ProChat[]
+  proUsageDailyRecords ProUsageDaily[]
+  createdInboxItems InboxItem[]            @relation("InboxItemCreator")
+  inboxTargetItems  InboxItemUserTarget[]  @relation("InboxTargetUser")
+  inboxDeliveries   UserInboxDelivery[]    @relation("InboxUserDelivery")
+  pushEndpoints     UserPushEndpoint[]     @relation("UserPushEndpointOwner")
+  moodEntries     MoodEntry[]
+  crisisEvents    CrisisEvent[]
+  adminLogs       AdminAuditLog[] @relation("AdminActor")
+  targetLogs      AdminAuditLog[] @relation("AdminTarget")
+  memoryProfile   UserMemoryProfile?
+  sessionSummaries SessionSummary[]
+  facts           UserFact[]
+  bans            Ban[]
+  appeals         Appeal[]
+  supportTickets  SupportTicket[]
+  chatSessionsAsA ChatSession[]         @relation("ChatSessionUserA")
+  chatSessionsAsB ChatSession[]         @relation("ChatSessionUserB")
+  sentSessionMessages ChatSessionMessage[] @relation("ChatSessionMessageSender")
+  hiddenChatSessions UserHiddenChatSession[]
+  modActionsAsAdmin  ModAction[]        @relation("ModActionAdmin")
+  modActionsAsTarget ModAction[]        @relation("ModActionTarget")
+  modLogs            ModLog[]           @relation("ModLogUser")
+
+  @@index([isDeleted, createdAt])
+}
+
+model IdSequence {
+  key       String   @id
+  value     BigInt
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  ipAddress String?
+  userAgent String?
+  platform  String?
+  device    String?
+  appName   String?
+  lastSeenAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, expiresAt])
+  @@index([userId, lastSeenAt])
+}
+
+model LoginEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  username  String?
+  sessionId String?
+  action    String
+  success   Boolean  @default(true)
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  platform  String?
+  device    String?
+  appName   String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([success, createdAt])
+}
+
+model Chat {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedReason String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     Message[]
+  crisisEvents CrisisEvent[]
+  sessionSummaries SessionSummary[]
+
+  @@index([userId])
+  @@index([userId, isDeleted, updatedAt])
+}
+
+model ProChat {
+  id           String    @id @default(cuid())
+  userId       String
+  clientChatId String
+  title        String
+  modelTier    String    @default("standard")
+  toolMode     String    @default("chat")
+  messagesJson String    @default("[]")
+  lastMessage  String    @default("")
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  deletedReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientChatId])
+  @@index([userId, isDeleted, updatedAt])
+}
+
+model ProUsageDaily {
+  id        String   @id @default(cuid())
+  userId    String
+  feature   String
+  dayKey    String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature, dayKey])
+  @@index([userId, dayKey])
+}
+
+model InboxItem {
+  id          String            @id @default(cuid())
+  type        InboxItemType     @default(SYSTEM)
+  scope       InboxScope        @default(GLOBAL)
+  status      InboxPublishStatus @default(DRAFT)
+  title       String
+  message     String
+  payloadJson String            @default("{}")
+  templateKey String?
+  segmentKey  String?
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  createdBy   User?                 @relation("InboxItemCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  targetUsers InboxItemUserTarget[]
+  deliveries  UserInboxDelivery[]
+
+  @@index([status, scheduledAt])
+  @@index([publishedAt])
+  @@index([scope, status])
+}
+
+model InboxItemUserTarget {
+  id        String   @id @default(cuid())
+  itemId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  item InboxItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User      @relation("InboxTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@index([userId, createdAt])
+}
+
+model UserInboxDelivery {
+  id          String         @id @default(cuid())
+  itemId       String
+  userId       String
+  state        InboxUserState @default(UNREAD)
+  pushState    InboxPushState @default(PENDING)
+  pushAttempts Int            @default(0)
+  nextPushRetryAt DateTime?
+  pushedAt     DateTime?
+  lastPushError String?
+  progressJson String         @default("{}")
+  deliveredAt  DateTime?
+  seenAt       DateTime?
+  skippedAt    DateTime?
+  completedAt  DateTime?
+  dismissedAt  DateTime?
+  lastSyncedAt DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  item InboxItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User      @relation("InboxUserDelivery", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@index([pushState, nextPushRetryAt, updatedAt])
+  @@index([userId, state, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model UserPushEndpoint {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String   @default("expo")
+  platform  String   @default("unknown")
+  locale    String   @default("ru")
+  timeZone  String   @default("Asia/Bishkek")
+  pushToken String
+  isActive  Boolean  @default(true)
+  lastSeenAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserPushEndpointOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, pushToken])
+  @@index([userId, isActive])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  chatId    String
+  role      MessageRole
+  content   String
+  createdAt DateTime    @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+}
+
+model MoodEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  score     Int
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CrisisEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  chatId      String?
+  triggerType String
+  textSnippet String
+  createdAt   DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat Chat? @relation(fields: [chatId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([chatId])
+}
+
+model AdminAuditLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  action       String
+  targetUserId String?
+  metaJson     String
+  createdAt    DateTime @default(now())
+
+  admin      User  @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("AdminTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
+  @@index([targetUserId])
+}
+
+model AppConfig {
+  id               Int      @id
+  // Main Alma prompt template.
+  // Supported placeholders in runtime:
+  // ${MEMORY_BLOCK}, ${MOOD_BLOCK}, ${MODE}, ${MODE_PROMPT}
+  systemPrompt     String
+  safetyPrompt     String
+  openrouterModel  String
+  openrouterApiKey String?
+  featureFlagsJson String
+  updatedAt        DateTime @updatedAt
+}
+
+model AiMode {
+  id           Int      @id @default(autoincrement())
+  key          String   @unique
+  name         String
+  emoji        String
+  // Per-mode prompt body injected into ${MODE_PROMPT}.
+  systemPrompt String
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AiLevel {
+  id            Int      @id @default(autoincrement())
+  key           String   @unique
+  name          String
+  emoji         String
+  description   String
+  primaryModel  String
+  fallbackModel String
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UserMemoryProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  profileJson String   @default("{}")
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SessionSummary {
+  id        String   @id @default(cuid())
+  userId    String
+  chatId    String?
+  summary   String
+  mood      Int?
+  topics    String
+  homework  String?
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat Chat? @relation(fields: [chatId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([chatId])
+  @@index([userId, deletedAt, createdAt])
+}
+
+model UserFact {
+  id              String   @id @default(cuid())
+  userId          String
+  category        String
+  detail          String
+  emotionalWeight String
+  shouldFollowup  Boolean  @default(false)
+  followupDate    DateTime?
+  archived        Boolean  @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, detail])
+  @@index([userId, archived, shouldFollowup])
+  @@index([userId, deletedAt, archived])
+}
+
+model AvailableModel {
+  id         Int      @id @default(autoincrement())
+  modelId    String   @unique
+  name       String
+  isFree     Boolean  @default(false)
+  isWorking  Boolean  @default(false)
+  responseMs Int?
+  lastTested DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isWorking])
+  @@index([modelId])
+}
+
+model Ban {
+  id        String    @id @default(cuid())
+  userId    String
+  scope     BanScope  @default(ANON)
+  level     BanLevel
+  reason    String
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appeal  Appeal?
+
+  @@index([userId, scope, isActive, expiresAt])
+}
+
+model Appeal {
+  id         String       @id @default(cuid())
+  banId      String       @unique
+  userId     String
+  message    String
+  status     AppealStatus @default(PENDING)
+  adminNote  String?
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  ban  Ban  @relation(fields: [banId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model SupportTicket {
+  id        String              @id @default(cuid())
+  userId    String
+  type      SupportTicketType
+  message   String
+  status    SupportTicketStatus @default(OPEN)
+  adminNote String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model ChatSession {
+  id        String            @id
+  userAId   String
+  userBId   String
+  mode      String
+  room      String
+  status    ChatSessionStatus @default(ACTIVE)
+  startedAt DateTime          @default(now())
+  endedAt   DateTime?
+  endedBy   ChatSessionEndedBy?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  userA      User                 @relation("ChatSessionUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB      User                 @relation("ChatSessionUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages   ChatSessionMessage[]
+  hiddenForUsers UserHiddenChatSession[]
+  modActions ModAction[]
+  modLogs    ModLog[]
+
+  @@index([status, startedAt])
+  @@index([userAId, startedAt])
+  @@index([userBId, startedAt])
+}
+
+model UserHiddenChatSession {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String
+  hiddenAt  DateTime @default(now())
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([userId, hiddenAt])
+  @@index([sessionId])
+}
+
+model ChatSessionMessage {
+  id         String   @id
+  sessionId  String
+  senderId   String?
+  senderType String
+  alias      String?
+  text       String
+  isDeleted  Boolean  @default(false)
+  deletedBy  String?
+  flagged    Boolean  @default(false)
+  flagReason String?
+  sentAt     DateTime @default(now())
+  metaJson   String?
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender  User?       @relation("ChatSessionMessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, sentAt])
+  @@index([senderId, sentAt])
+  @@index([flagged, sentAt])
+}
+
+model ModAction {
+  id           String   @id @default(cuid())
+  adminId      String
+  targetUserId String?
+  sessionId    String?
+  action       String
+  reason       String?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  admin      User         @relation("ModActionAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  targetUser User?        @relation("ModActionTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  session    ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+model ModLog {
+  id             String   @id @default(cuid())
+  type           String
+  userId         String?
+  sessionId      String?
+  triggerWord    String?
+  openaiCategory String?
+  autoAction     String?
+  detailsJson    String?
+  createdAt      DateTime @default(now())
+
+  user    User?        @relation("ModLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+model Developer {
+  id           String   @id @default(cuid())
+  name         String
+  role         String
+  bio          String
+  photo        String?
+  github       String?
+  linkedin     String?
+  contribution String   @default("[]")
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([order, createdAt])
+}
+
+model LegalDocument {
+  id        String            @id @default(cuid())
+  type      LegalDocumentType @unique
+  content   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model FaqItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  category  String
+  color     String   @default("#667eea")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order, createdAt])
+}
+
+model SupportInfo {
+  id              Int      @id
+  email           String
+  telegram        String?
+  instagram       String?
+  status          String   @default("online")
+  avgResponseTime String   @default("15 минут")
+  updatedAt       DateTime @updatedAt
+}
+
+model AppInfo {
+  id          Int      @id
+  name        String
+  version     String
+  description String
+  logo        String?
+  socialsJson String   @default("{}")
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,35 @@
+<%- include('partials/header', { title: 'Журнал логов' }) %>
+
+<div class="card">
+    <h2>Аудит администратора</h2>
+    <table>
+      <tr><th>Время</th><th>Админ</th><th>Действие</th><th>Цель</th><th>Мета</th></tr>
+      <% auditLogs.forEach((l) => { %>
+        <tr>
+          <td><%= l.createdAt.toISOString() %></td>
+          <td><%= l.admin ? l.admin.username : 'удален' %></td>
+          <td><%= l.action %></td>
+          <td><%= l.targetUser ? l.targetUser.username : '-' %></td>
+          <td><%= l.metaJson %></td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Кризисные события</h2>
+    <table>
+      <tr><th>Время</th><th>Пользователь</th><th>Тип</th><th>Чат</th><th>Фрагмент</th></tr>
+      <% crisisLogs.forEach((c) => { %>
+        <tr>
+          <td><%= c.createdAt.toISOString() %></td>
+          <td><%= c.user ? c.user.username : 'удален' %></td>
+          <td><%= c.triggerType %></td>
+          <td><%= c.chat ? c.chat.title : '-' %></td>
+          <td><%= c.textSnippet %></td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
+
+<%- include('partials/footer') %>

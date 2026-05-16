@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Вход — AI Friendly Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/static/style.css">
+</head>
+<body class="login-body">
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">А</div>
+      <div style="font-weight:700;font-size:18px">AI Friendly</div>
+      <div style="color:var(--text-faint);font-size:13px;margin-top:4px">
+        Панель администратора
+      </div>
+    </div>
+    <% if(error) { %>
+      <div class="badge badge-danger" style="width:100%;justify-content:center;padding:10px;border-radius:8px;margin-bottom:16px">
+        <%= error %>
+      </div>
+    <% } %>
+    <form method="post" action="/admin/login" class="admin-form">
+      <div class="form-group">
+        <label class="form-label">Логин</label>
+        <input class="form-input" type="text" name="username"
+               placeholder="admin" autofocus />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Пароль</label>
+        <input class="form-input" type="password" name="password"
+               placeholder="••••••••" />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;height:40px">
+        Войти
+      </button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

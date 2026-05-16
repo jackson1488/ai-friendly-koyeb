@@ -1,0 +1,641 @@
+﻿<%- include('partials/header', { title: 'Inbox / Рассылки' }) %>
+
+<%
+  const inboxItems = Array.isArray(items) ? items : [];
+  const activeStatus = `${filters?.status || ''}`.trim().toUpperCase();
+  const activeTypeGroup = `${typeGroup || 'alerts'}`.trim().toLowerCase() || 'alerts';
+  const isHistoryMode = activeTypeGroup === 'all';
+  const typeNavItems = Array.isArray(typeTabs) ? typeTabs : [];
+  const topTypeNavItems = isHistoryMode
+    ? typeNavItems.filter((tab) => tab.key === 'all')
+    : typeNavItems.filter((tab) => tab.key !== 'all');
+  const composeNavItems = Array.isArray(composeTabs) ? composeTabs : [];
+  const historyNavItems = Array.isArray(historyTabs) ? historyTabs : [];
+  const userOptions = Array.isArray(users) ? users : [];
+  const activeComposeType = `${composeType || editingItem?.type || 'NEWS'}`.trim().toUpperCase() || 'NEWS';
+  const activeHistoryType = `${historyType || 'NEWS'}`.trim().toUpperCase() || 'NEWS';
+  const allowedTypes = Array.isArray(availableTypes) && availableTypes.length
+    ? availableTypes
+    : ['NEWS', 'SYSTEM'];
+  const editing = editingItem && typeof editingItem === 'object' ? editingItem : null;
+  const editingPayload = editing?.payload && typeof editing.payload === 'object' ? editing.payload : {};
+  const editingTargetUserIds = Array.isArray(editing?.targetUsers)
+    ? editing.targetUsers
+        .map((row) => `${row?.userId || ''}`.trim())
+        .filter(Boolean)
+        .join('\n')
+    : '';
+  const editingAction = editing ? `/admin/inbox/${editing.id}/update` : '/admin/inbox/send';
+  const selectedType = editing ? `${editing.type || activeComposeType}`.trim().toUpperCase() : activeComposeType;
+
+  function dt(value) {
+    if (!value) return '—';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function statusLabel(status) {
+    const key = `${status || ''}`.toUpperCase();
+    if (key === 'DRAFT') return 'Черновик';
+    if (key === 'SCHEDULED') return 'Запланировано';
+    if (key === 'PUBLISHED') return 'Опубликовано';
+    if (key === 'CANCELED') return 'Отменено';
+    return key || '—';
+  }
+
+  function scopeLabel(scope) {
+    const key = `${scope || ''}`.toUpperCase();
+    if (key === 'GLOBAL') return 'Все пользователи';
+    if (key === 'USER') return 'Конкретные пользователи';
+    if (key === 'SEGMENT') return 'Сегмент';
+    return key || '—';
+  }
+
+  function typeLabel(type) {
+    const key = `${type || ''}`.toUpperCase();
+    if (key === 'TEST') return 'Тест';
+    if (key === 'NEWS') return 'Новость';
+    if (key === 'SYSTEM') return 'Системное';
+    return key || '—';
+  }
+%>
+
+<div class="admin-page-head">
+  <h1 class="admin-page-title">Inbox / Рассылки</h1>
+  <p class="admin-page-subtitle">Единый модуль доставки карточек новостей и системных уведомлений.</p>
+</div>
+<% if (!isHistoryMode) { %>
+  <div style="margin: 2px 0 10px;">
+    <a href="/admin/inbox?group=all&history=NEWS" class="btn btn-secondary">Перейти в историю inbox</a>
+  </div>
+<% } else { %>
+  <div style="margin: 2px 0 10px;">
+    <a href="/admin/inbox?group=alerts&kind=NEWS" class="btn btn-secondary">Назад к отправке (Новости/Системные)</a>
+  </div>
+<% } %>
+
+<div class="admin-pill-nav">
+  <% topTypeNavItems.forEach((tab) => { %>
+    <a href="<%= tab.href %>" class="admin-pill-link <%= tab.active ? 'active' : '' %>">
+      <%= tab.label %>
+    </a>
+  <% }) %>
+</div>
+<% if (!isHistoryMode) { %>
+  <div class="admin-pill-nav" style="margin-top:-8px;">
+    <% composeNavItems.forEach((tab) => { %>
+      <a href="<%= tab.href %>" class="admin-pill-link <%= tab.active ? 'active' : '' %>">
+        <%= tab.label %>
+      </a>
+    <% }) %>
+    <a href="/admin/inbox?group=all&history=NEWS" class="admin-pill-link">История inbox</a>
+  </div>
+<% } %>
+
+<% if (success) { %>
+  <div class="alert success">Операция выполнена.</div>
+<% } %>
+<% if (errorMessage) { %>
+  <div class="alert error"><%= errorMessage %></div>
+<% } %>
+
+<div class="admin-split-layout <%= isHistoryMode ? 'history-full' : 'compose-full' %>">
+  <% if (!isHistoryMode) { %>
+  <div class="admin-split-stack">
+    <div class="card">
+      <h2 class="card-title"><%= editing ? 'Редактирование карточки' : 'Новая рассылка' %></h2>
+      <form method="post" action="<%= editingAction %>" enctype="multipart/form-data">
+        <input type="hidden" name="group" value="<%= activeTypeGroup %>" />
+        <input type="hidden" name="kind" value="<%= activeComposeType %>" />
+        <input type="hidden" name="type" value="<%= selectedType %>" />
+        <div class="alert" style="margin-top: 10px;">
+          <strong>Режим отправки:</strong>
+          <%= activeComposeType === 'NEWS' ? 'Новости' : 'Системные уведомления' %>.
+          Форма ниже разделена на блоки: контент, пуш-превью, аудитория, доставка.
+        </div>
+        <div class="inbox-compose-sections">
+          <section class="inbox-compose-section">
+            <h3 class="inbox-compose-title">1) Контент карточки</h3>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Тип карточки</label>
+                <select class="form-select" name="typeReadonly" id="inboxType" disabled>
+                  <% allowedTypes.forEach((type) => { %>
+                    <option value="<%= type %>" <%= selectedType === type ? 'selected' : '' %>>
+                      <%= typeLabel(type) %>
+                    </option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Аудитория</label>
+                <select class="form-select" name="scope">
+                  <option value="GLOBAL" <%= `${editing?.scope || 'GLOBAL'}`.toUpperCase() === 'GLOBAL' ? 'selected' : '' %>>Все пользователи</option>
+                  <option value="USER" <%= `${editing?.scope || ''}`.toUpperCase() === 'USER' ? 'selected' : '' %>>Конкретные пользователи</option>
+                  <option value="SEGMENT" <%= `${editing?.scope || ''}`.toUpperCase() === 'SEGMENT' ? 'selected' : '' %>>Сегмент</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Шаблон по типу</label>
+                <select class="form-select" id="inboxTemplatePreset">
+                  <option value="">— выбрать —</option>
+                  <option value="NEWS">NEWS: новость</option>
+                  <option value="SYSTEM">SYSTEM: системное уведомление</option>
+                </select>
+              </div>
+              <div class="form-group" style="display:flex; align-items:flex-end;">
+                <button type="button" class="btn btn-secondary" id="applyTemplateBtn">Применить шаблон</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Заголовок</label>
+              <input class="form-input" name="title" maxlength="180" value="<%= editing?.title || '' %>" required />
+            </div>
+            <div class="form-group">
+              <label>Текст</label>
+              <textarea class="form-textarea" rows="4" name="message" id="inboxMessage" maxlength="2000" required><%= editing?.message || '' %></textarea>
+            </div>
+            <div class="form-group">
+              <label>Детальный текст (полная страница)</label>
+              <textarea class="form-textarea" rows="8" name="detailText" placeholder="Подробный текст для чтения в отдельном экране"><%= editingPayload?.content || '' %></textarea>
+            </div>
+          </section>
+
+          <section class="inbox-compose-section">
+            <h3 class="inbox-compose-title">2) Push-превью (кратко)</h3>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Push заголовок (краткий)</label>
+                <input class="form-input" maxlength="180" name="pushTitle" placeholder="Короткий заголовок для push" value="<%= editingPayload?.pushTitle || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Push текст (краткий)</label>
+                <input class="form-input" maxlength="240" name="pushBody" placeholder="Короткий текст push-уведомления" value="<%= editingPayload?.pushBody || '' %>" />
+              </div>
+            </div>
+          </section>
+
+          <section class="inbox-compose-section">
+            <h3 class="inbox-compose-title">3) Действия карточки и вложения</h3>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Маршрут (например `/personalization-test`)</label>
+                <input class="form-input" name="route" id="inboxRoute" placeholder="/personalization-test" value="<%= editingPayload?.route || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Ключ шаблона</label>
+                <input class="form-input" name="templateKey" placeholder="onboarding_test_v2" value="<%= editing?.templateKey || '' %>" />
+              </div>
+            </div>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Текст кнопки «Открыть»</label>
+                <input class="form-input" name="primaryLabel" id="inboxPrimaryLabel" placeholder="Открыть" value="<%= editingPayload?.primaryLabel || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Текст кнопки «Позже»</label>
+                <input class="form-input" name="secondaryLabel" id="inboxSecondaryLabel" placeholder="Позже" value="<%= editingPayload?.secondaryLabel || '' %>" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>URL изображения (опционально)</label>
+              <input class="form-input" name="imageUrl" id="inboxImageUrl" placeholder="https://.../cover.jpg" value="<%= editingPayload?.imageUrl || '' %>" />
+            </div>
+            <div class="form-group">
+              <label>Изображение с устройства (опционально)</label>
+              <input class="form-input" type="file" name="imageFile" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png,.gif,.bmp" />
+            </div>
+            <details class="inbox-compose-advanced">
+              <summary>Продвинутый формат контента</summary>
+              <div class="form-group">
+                <label>Markdown для детальной страницы (NEWS/SYSTEM)</label>
+                <textarea class="form-textarea" rows="5" name="markdown" id="inboxMarkdown" placeholder="# Заголовок&#10;Текст абзаца..."><%= editingPayload?.markdown || '' %></textarea>
+              </div>
+              <div class="form-group">
+                <label>JSON блоки для rich-деталей (опционально)</label>
+                <textarea class="form-textarea" rows="4" name="blocksJson" placeholder='[{"type":"paragraph","text":"..."},{"type":"cta","label":"Открыть","route":"/memory"}]'><%= JSON.stringify(editingPayload?.blocks || [], null, 2) %></textarea>
+              </div>
+            </details>
+          </section>
+
+          <section class="inbox-compose-section">
+            <h3 class="inbox-compose-title">4) Локализация и CTA</h3>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Локаль RU: заголовок</label>
+                <input class="form-input" name="titleRu" placeholder="Заголовок на русском" value="<%= editingPayload?.titleByLocale?.ru || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Локаль KY: заголовок</label>
+                <input class="form-input" name="titleKy" placeholder="Кыргызча аталыш" value="<%= editingPayload?.titleByLocale?.ky || '' %>" />
+              </div>
+            </div>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Локаль RU: текст</label>
+                <textarea class="form-textarea" rows="3" name="messageRu" placeholder="Текст на русском"><%= editingPayload?.messageByLocale?.ru || '' %></textarea>
+              </div>
+              <div class="form-group">
+                <label>Локаль KY: текст</label>
+                <textarea class="form-textarea" rows="3" name="messageKy" placeholder="Кыргызча текст"><%= editingPayload?.messageByLocale?.ky || '' %></textarea>
+              </div>
+            </div>
+            <div class="pro-grid-3">
+              <div class="form-group">
+                <label>CTA кнопка: текст</label>
+                <input class="form-input" name="ctaLabel" placeholder="Открыть подробнее" value="<%= (Array.isArray(editingPayload?.ctas) && editingPayload.ctas[0]?.label) || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>CTA route (в приложении)</label>
+                <input class="form-input" name="ctaRoute" placeholder="/memory" value="<%= (Array.isArray(editingPayload?.ctas) && editingPayload.ctas[0]?.route) || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>CTA URL (web)</label>
+                <input class="form-input" name="ctaUrl" placeholder="https://example.com" value="<%= (Array.isArray(editingPayload?.ctas) && editingPayload.ctas[0]?.url) || '' %>" />
+              </div>
+            </div>
+          </section>
+
+          <section class="inbox-compose-section">
+            <h3 class="inbox-compose-title">5) Аудитория и доставка</h3>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Ключ сегмента (для «Сегмент»)</label>
+                <select class="form-select" name="segmentKey">
+                  <option value="" <%= !(editing?.segmentKey) ? 'selected' : '' %>>—</option>
+                  <option value="all_users" <%= editing?.segmentKey === 'all_users' ? 'selected' : '' %>>all_users</option>
+                  <option value="admins" <%= editing?.segmentKey === 'admins' ? 'selected' : '' %>>admins</option>
+                  <option value="pro_users" <%= editing?.segmentKey === 'pro_users' ? 'selected' : '' %>>pro_users</option>
+                  <option value="no_pro_users" <%= editing?.segmentKey === 'no_pro_users' ? 'selected' : '' %>>no_pro_users</option>
+                  <option value="new_users_7d" <%= editing?.segmentKey === 'new_users_7d' ? 'selected' : '' %>>new_users_7d</option>
+                </select>
+              </div>
+              <div class="form-group" id="targetUsersWrap">
+                <label>ID пользователей (для «Конкретные пользователи»)</label>
+                <textarea
+                  class="form-textarea"
+                  rows="3"
+                  id="targetUserIds"
+                  name="targetUserIds"
+                  placeholder="id1,id2 или с новой строки"
+                ><%= editingTargetUserIds %></textarea>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                  <input
+                    list="inboxUserList"
+                    class="form-input"
+                    id="inboxUserQuickPick"
+                    placeholder="Поиск пользователя (id / username)"
+                  />
+                  <button type="button" class="btn btn-secondary" id="addInboxUserToListBtn">Добавить</button>
+                </div>
+                <datalist id="inboxUserList">
+                  <% userOptions.forEach((u) => { %>
+                    <option value="<%= u.id %>"><%= `${u.displayName} (@${u.username}) ${u.publicId ? `• ID: ${u.publicId}` : ''}` %></option>
+                  <% }) %>
+                </datalist>
+              </div>
+            </div>
+            <div class="pro-grid-3">
+              <div class="form-group">
+                <label>Повтор каждые (мин)</label>
+                <input class="form-input" type="number" min="1" max="20160" name="repeatEveryMinutes" placeholder="например 1440" value="<%= editingPayload?.schedule?.repeatEveryMinutes || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Макс. повторов</label>
+                <input class="form-input" type="number" min="1" max="1000" name="maxOccurrences" placeholder="например 7" value="<%= editingPayload?.schedule?.maxOccurrences || '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Повторять до (опц.)</label>
+                <input class="form-input" type="datetime-local" name="repeatUntil" value="<%= editingPayload?.schedule?.repeatUntil ? new Date(editingPayload.schedule.repeatUntil).toISOString().slice(0,16) : '' %>" />
+              </div>
+            </div>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Quiet hours start (локальное время)</label>
+                <input class="form-input" type="time" name="quietHoursStart" value="<%= editingPayload?.delivery?.quietHours?.start || '23:00' %>" />
+              </div>
+              <div class="form-group">
+                <label>Quiet hours end (локальное время)</label>
+                <input class="form-input" type="time" name="quietHoursEnd" value="<%= editingPayload?.delivery?.quietHours?.end || '08:00' %>" />
+              </div>
+            </div>
+            <div class="pro-grid-2">
+              <div class="form-group">
+                <label>Публикация в будущем (опционально)</label>
+                <input class="form-input" type="datetime-local" name="scheduledAt" value="<%= editing?.scheduledAt ? new Date(editing.scheduledAt).toISOString().slice(0,16) : '' %>" />
+              </div>
+              <div class="form-group">
+                <label>Срок действия до (опционально)</label>
+                <input class="form-input" type="datetime-local" name="expiresAt" value="<%= editing?.expiresAt ? new Date(editing.expiresAt).toISOString().slice(0,16) : '' %>" />
+              </div>
+            </div>
+            <details class="inbox-compose-advanced">
+              <summary>Дополнительный JSON payload</summary>
+              <div class="form-group">
+                <textarea class="form-textarea" rows="3" name="payloadJson" placeholder='{"key":"value"}'><%= JSON.stringify(editingPayload || {}, null, 2) %></textarea>
+              </div>
+            </details>
+            <label class="checkbox-row" style="margin-top:10px;">
+              <input class="form-input" type="checkbox" name="publishNow" value="true" <%= editing ? '' : 'checked' %> />
+              Опубликовать сразу
+            </label>
+          </section>
+        </div>
+
+        <div class="admin-actions" style="margin-top:14px;">
+          <button type="submit" class="btn btn-primary"><%= editing ? 'Сохранить изменения' : 'Создать и отправить' %></button>
+          <% if (editing) { %>
+            <a href="/admin/inbox?group=<%= activeTypeGroup %>&kind=<%= activeComposeType %>" class="btn btn-secondary">Отменить редактирование</a>
+          <% } %>
+        </div>
+      </form>
+
+      <div style="margin-top:18px;">
+        <h3 style="margin:0 0 10px;">Предпросмотр (как на телефоне)</h3>
+        <div style="max-width:340px; border:1px solid var(--border); border-radius:24px; padding:14px; background:#120728;">
+          <div style="font-size:11px; color:#8f7ad8; font-weight:700; margin-bottom:8px;">INBOX PREVIEW</div>
+          <div id="previewImageWrap" style="display:none; margin-bottom:10px;">
+            <img id="previewImage" alt="cover" style="width:100%; height:140px; object-fit:cover; border-radius:12px;" />
+          </div>
+          <div id="previewTitle" style="font-size:18px; font-weight:800; color:#fff; margin-bottom:8px;">Заголовок</div>
+          <div id="previewMessage" style="font-size:14px; line-height:20px; color:#cfc7ff;">Текст сообщения</div>
+          <div style="display:flex; gap:8px; margin-top:14px;">
+            <div id="previewSecondary" style="padding:8px 12px; border:1px solid #5d4f8f; border-radius:10px; color:#e6e0ff; font-size:13px;">Позже</div>
+            <div id="previewPrimary" style="padding:8px 12px; border-radius:10px; background:#38c9e8; color:#fff; font-size:13px;">Открыть</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="admin-split-stack">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px;">
+        <h2 class="card-title" style="margin:0;">История рассылок</h2>
+        <% if (!isHistoryMode) { %>
+          <a href="/admin/inbox?group=all&history=NEWS" class="btn btn-secondary btn-sm">Открыть отдельную историю</a>
+        <% } %>
+        <form method="get" action="/admin/inbox" style="display:flex; gap:8px; align-items:center;">
+          <input type="hidden" name="group" value="<%= activeTypeGroup %>" />
+          <% if (isHistoryMode) { %>
+            <input type="hidden" name="history" value="<%= activeHistoryType %>" />
+          <% } else { %>
+            <input type="hidden" name="kind" value="<%= activeComposeType %>" />
+          <% } %>
+          <select class="form-select" name="status" style="min-width: 180px;">
+            <option value="" <%= !activeStatus ? 'selected' : '' %>>Все статусы</option>
+            <option value="DRAFT" <%= activeStatus === 'DRAFT' ? 'selected' : '' %>>Черновик</option>
+            <option value="SCHEDULED" <%= activeStatus === 'SCHEDULED' ? 'selected' : '' %>>Запланировано</option>
+            <option value="PUBLISHED" <%= activeStatus === 'PUBLISHED' ? 'selected' : '' %>>Опубликовано</option>
+            <option value="CANCELED" <%= activeStatus === 'CANCELED' ? 'selected' : '' %>>Отменено</option>
+          </select>
+          <button type="submit" class="btn btn-secondary btn-sm">Фильтр</button>
+        </form>
+      </div>
+      <% if (isHistoryMode) { %>
+        <div class="admin-pill-nav" style="margin-top:-4px; margin-bottom:12px;">
+          <% historyNavItems.forEach((tab) => { %>
+            <a href="<%= tab.href %>" class="admin-pill-link <%= tab.active ? 'active' : '' %>">
+              <%= tab.label %>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Карточка</th>
+              <th>Тип / аудитория</th>
+              <th>Статус</th>
+              <th>Публикация</th>
+              <th>Охват</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!inboxItems.length) { %>
+              <tr>
+                <td colspan="6" style="text-align:center; color:var(--text-faint);">Записей пока нет</td>
+              </tr>
+            <% } %>
+            <% inboxItems.forEach((item) => { %>
+              <tr>
+                <td>
+                  <div style="font-weight:600;"><%= item.title %></div>
+                  <div style="font-size:12px; color:var(--text-faint); margin-top:4px;"><%= item.message %></div>
+                  <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">ID: <code class="mono"><%= item.id %></code></div>
+                </td>
+                <td>
+                  <span class="badge badge-muted"><%= typeLabel(item.type) %></span>
+                  <span class="badge badge-muted"><%= scopeLabel(item.scope) %></span>
+                </td>
+                <td>
+                  <% if (item.status === 'PUBLISHED') { %>
+                    <span class="badge badge-success"><%= statusLabel(item.status) %></span>
+                  <% } else if (item.status === 'CANCELED') { %>
+                    <span class="badge badge-danger"><%= statusLabel(item.status) %></span>
+                  <% } else if (item.status === 'SCHEDULED') { %>
+                    <span class="badge badge-warning"><%= statusLabel(item.status) %></span>
+                  <% } else { %>
+                    <span class="badge badge-muted"><%= statusLabel(item.status) %></span>
+                  <% } %>
+                </td>
+                <td>
+                  <div style="font-size:12px;">Запланировано: <%= dt(item.scheduledAt) %></div>
+                  <div style="font-size:12px;">Опубликовано: <%= dt(item.publishedAt) %></div>
+                </td>
+                <td>
+                  <div style="font-size:12px;">Целей: <%= item._count?.targetUsers || 0 %></div>
+                  <div style="font-size:12px;">Доставок: <%= item._count?.deliveries || 0 %></div>
+                </td>
+                <td>
+                  <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                    <% if (item.status !== 'PUBLISHED' && item.status !== 'CANCELED') { %>
+                      <form method="post" action="/admin/inbox/<%= item.id %>/publish" style="margin:0;">
+                        <input type="hidden" name="group" value="<%= activeTypeGroup %>" />
+                        <% if (isHistoryMode) { %>
+                          <input type="hidden" name="history" value="<%= activeHistoryType %>" />
+                        <% } else { %>
+                          <input type="hidden" name="kind" value="<%= activeComposeType %>" />
+                        <% } %>
+                        <button type="submit" class="btn btn-sm btn-primary">Опубликовать</button>
+                      </form>
+                    <% } %>
+                    <% if (item.status !== 'CANCELED') { %>
+                      <form method="post" action="/admin/inbox/<%= item.id %>/cancel" style="margin:0;">
+                        <input type="hidden" name="group" value="<%= activeTypeGroup %>" />
+                        <% if (isHistoryMode) { %>
+                          <input type="hidden" name="history" value="<%= activeHistoryType %>" />
+                        <% } else { %>
+                          <input type="hidden" name="kind" value="<%= activeComposeType %>" />
+                        <% } %>
+                        <button type="submit" class="btn btn-sm btn-secondary">Отменить</button>
+                      </form>
+                    <% } %>
+                    <a
+                      href="/admin/inbox?group=<%= activeTypeGroup %>&<%= isHistoryMode ? ('history=' + encodeURIComponent(activeHistoryType)) : ('kind=' + encodeURIComponent(activeComposeType)) %>&edit=<%= encodeURIComponent(item.id) %>"
+                      class="btn btn-sm btn-secondary"
+                    >
+                      Редактировать
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const templates = {
+      NEWS: {
+        title: 'Новая важная новость',
+        message: 'Открыть подробности и рекомендации по обновлению.',
+        route: '',
+        primaryLabel: 'Открыть',
+        secondaryLabel: 'Позже'
+      },
+      SYSTEM: {
+        title: 'Системное уведомление',
+        message: 'Выполните действие в приложении.',
+        route: '/',
+        primaryLabel: 'Открыть',
+        secondaryLabel: 'Позже'
+      }
+    };
+
+    const q = (id) => document.getElementById(id);
+    const typeEl = q('inboxType');
+    const templateEl = q('inboxTemplatePreset');
+    const applyBtn = q('applyTemplateBtn');
+    const defaultComposeType = '<%= activeComposeType %>';
+
+    const titleEl = document.querySelector('input[name="title"]');
+    const messageEl = q('inboxMessage');
+    const routeEl = q('inboxRoute');
+    const primaryEl = q('inboxPrimaryLabel');
+    const secondaryEl = q('inboxSecondaryLabel');
+    const imageEl = q('inboxImageUrl');
+    const scopeEl = document.querySelector('select[name="scope"]');
+    const targetUsersWrap = q('targetUsersWrap');
+    const targetUsersTextarea = q('targetUserIds');
+    const inboxUserQuickPick = q('inboxUserQuickPick');
+    const addInboxUserToListBtn = q('addInboxUserToListBtn');
+
+    const pTitle = q('previewTitle');
+    const pMessage = q('previewMessage');
+    const pPrimary = q('previewPrimary');
+    const pSecondary = q('previewSecondary');
+    const pImage = q('previewImage');
+    const pImageWrap = q('previewImageWrap');
+
+    if (typeEl && defaultComposeType) {
+      typeEl.value = defaultComposeType;
+    }
+    if (templateEl && defaultComposeType) {
+      templateEl.value = defaultComposeType;
+    }
+
+    function updatePreview() {
+      if (pTitle) pTitle.textContent = (titleEl && titleEl.value.trim()) || 'Заголовок';
+      if (pMessage) pMessage.textContent = (messageEl && messageEl.value.trim()) || 'Текст сообщения';
+      if (pPrimary) pPrimary.textContent = (primaryEl && primaryEl.value.trim()) || 'Открыть';
+      if (pSecondary) pSecondary.textContent = (secondaryEl && secondaryEl.value.trim()) || 'Позже';
+      const imageUrl = (imageEl && imageEl.value.trim()) || '';
+      if (imageUrl && pImage && pImageWrap) {
+        pImage.src = imageUrl;
+        pImageWrap.style.display = 'block';
+      } else if (pImageWrap) {
+        pImageWrap.style.display = 'none';
+      }
+    }
+
+    function applyTemplate(type) {
+      const tpl = templates[type];
+      if (!tpl) return;
+      if (titleEl) titleEl.value = tpl.title;
+      if (messageEl) messageEl.value = tpl.message;
+      if (routeEl) routeEl.value = tpl.route;
+      if (primaryEl) primaryEl.value = tpl.primaryLabel;
+      if (secondaryEl) secondaryEl.value = tpl.secondaryLabel;
+      updatePreview();
+    }
+
+    function syncTargetUsersVisibility() {
+      if (!scopeEl || !targetUsersWrap) return;
+      const scope = `${scopeEl.value || ''}`.trim().toUpperCase();
+      targetUsersWrap.style.display = scope === 'USER' ? 'block' : 'none';
+    }
+
+    function addInboxUserIdFromQuickPick() {
+      if (!targetUsersTextarea || !inboxUserQuickPick) return;
+      const id = `${inboxUserQuickPick.value || ''}`.trim();
+      if (!id) return;
+      const list = (targetUsersTextarea.value || '')
+        .split(/[\n,\s]+/g)
+        .map((item) => `${item || ''}`.trim())
+        .filter(Boolean);
+      if (!list.includes(id)) list.push(id);
+      targetUsersTextarea.value = list.join('\n');
+      inboxUserQuickPick.value = '';
+      inboxUserQuickPick.focus();
+    }
+
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function () {
+        const key = (templateEl && templateEl.value) || (typeEl && typeEl.value) || '';
+        applyTemplate(key);
+      });
+    }
+
+    [titleEl, messageEl, routeEl, primaryEl, secondaryEl, imageEl].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('input', updatePreview);
+    });
+
+    if (typeEl) {
+      typeEl.addEventListener('change', function () {
+        if (!templateEl) return;
+        templateEl.value = typeEl.value;
+      });
+    }
+
+    if (scopeEl) {
+      scopeEl.addEventListener('change', syncTargetUsersVisibility);
+      syncTargetUsersVisibility();
+    }
+
+    if (addInboxUserToListBtn) {
+      addInboxUserToListBtn.addEventListener('click', addInboxUserIdFromQuickPick);
+    }
+    if (inboxUserQuickPick) {
+      inboxUserQuickPick.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        addInboxUserIdFromQuickPick();
+      });
+    }
+
+    updatePreview();
+  })();
+</script>
+
+<%- include('partials/footer') %>

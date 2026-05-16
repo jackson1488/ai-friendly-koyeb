@@ -1,0 +1,36 @@
+<%- include('partials/header', { title: 'Сообщения в чате' }) %>
+
+<a href="/admin/users/<%= chat.userId %>/chats" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  К списку чатов пользователя
+</a>
+
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:16px 20px;">
+  <div>
+    <h2 class="card-title" style="margin:0;"><%= chat.title || 'Чат пользователя' %></h2>
+    <div style="font-size:12px; color:var(--text-faint); margin-top:4px;">Юзер: @<%= chat.user.username %> • Обновлен: <%= chat.updatedAt.toISOString().slice(0,16).replace('T', ' ') %></div>
+  </div>
+</div>
+
+<div class="card" style="padding:24px;">
+  <div class="chat-container">
+    <% if (messages.length === 0) { %>
+      <div style="text-align:center; color:var(--text-faint); padding:40px;">Сообщений нет</div>
+    <% } else { %>
+      <% messages.forEach((m) => { 
+        let cssClass = 'user';
+        if (m.role === 'assistant') cssClass = 'assistant';
+        else if (m.role === 'system') cssClass = 'system';
+      %>
+        <div class="chat-msg <%= cssClass %>">
+          <div class="chat-bubble">
+            <%- m.content.replace(/\n/g, '<br/>') %>
+          </div>
+          <div class="chat-time"><%= m.createdAt.toISOString().slice(11,16) %></div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

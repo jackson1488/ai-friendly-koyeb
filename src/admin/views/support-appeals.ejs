@@ -1,0 +1,58 @@
+<%- include('partials/header', { title: 'Апелляции поддержки' }) %>
+
+<div class="card">
+    <form method="get" action="/admin/support/appeals">
+      <label>Статус</label>
+      <select class="form-select" name="status">
+        <option value="" <%= !filters.status ? 'selected' : '' %>>Все</option>
+        <option value="PENDING" <%= filters.status === 'PENDING' ? 'selected' : '' %>>PENDING</option>
+        <option value="APPROVED" <%= filters.status === 'APPROVED' ? 'selected' : '' %>>APPROVED</option>
+        <option value="REJECTED" <%= filters.status === 'REJECTED' ? 'selected' : '' %>>REJECTED</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Применить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Пользователь</th>
+        <th>Бан</th>
+        <th>Текст апелляции</th>
+        <th>Статус</th>
+        <th>Создано</th>
+        <th>Решение</th>
+      </tr>
+      <% appeals.forEach((appeal) => { %>
+        <tr>
+          <td><%= appeal.id %></td>
+          <td>
+            <a href="/admin/users/<%= appeal.user.id %>"><%= appeal.user.username %></a>
+            <div class="meta"><%= appeal.user.displayName %></div>
+          </td>
+          <td>
+            <div>Уровень: <strong><%= appeal.ban.level %></strong></div>
+            <div class="meta">Причина: <%= appeal.ban.reason %></div>
+            <div class="meta">Активен: <%= appeal.ban.isActive ? 'да' : 'нет' %></div>
+          </td>
+          <td style="max-width:360px; white-space:pre-wrap;"><%= appeal.message %></td>
+          <td><%= appeal.status %></td>
+          <td><%= appeal.createdAt.toISOString() %></td>
+          <td>
+            <form method="post" action="/admin/support/appeals/<%= appeal.id %>">
+              <select class="form-select" name="status">
+                <option value="PENDING" <%= appeal.status === 'PENDING' ? 'selected' : '' %>>PENDING</option>
+                <option value="APPROVED" <%= appeal.status === 'APPROVED' ? 'selected' : '' %>>APPROVED</option>
+                <option value="REJECTED" <%= appeal.status === 'REJECTED' ? 'selected' : '' %>>REJECTED</option>
+              </select>
+              <textarea class="form-textarea" name="adminNote" rows="3" placeholder="Комментарий модератора"><%= appeal.adminNote || '' %></textarea>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,57 @@
+<%- include('partials/header', { title: 'Фильтры памяти' }) %>
+
+<div class="admin-page-head">
+  <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <span class="badge badge-accent">Memory Filters</span>
+      <span class="badge badge-muted">LLM Check</span>
+      <span class="badge badge-muted">Regex</span>
+    </div>
+    <p class="meta">Управление фильтрами значимости сообщений перед запуском memory-пайплайна.</p>
+  </div>
+</div>
+
+<div class="card admin-card">
+  <form method="post" action="/admin/memory-filters" class="admin-form">
+    <div class="admin-section">
+      <h3 class="admin-section-title">Фильтрация перед сжатием</h3>
+      <p class="hint">
+        Этот блок решает, нужно ли запускать memory-пайплайн для конкретного сообщения.
+        Если сообщение незначимое (например «привет», «ок»), сжатие и извлечение фактов пропускаются.
+      </p>
+
+      <label class="checkbox-row">
+        <input class="form-input" type="checkbox" name="importanceFilterEnabled" value="true" <%= memorySettings.importanceFilterEnabled ? 'checked' : '' %> />
+        Включить фильтр значимости сообщений
+      </label>
+
+      <label class="checkbox-row">
+        <input class="form-input" type="checkbox" name="useLlmImportanceCheck" value="true" <%= memorySettings.useLlmImportanceCheck ? 'checked' : '' %> />
+        Использовать LLM-проверку значимости (максимальная точность)
+      </label>
+
+      <div class="form-group">
+        <label class="form-label">Минимум букв в сообщении для обработки</label>
+        <input class="form-input" type="number" min="1" max="100" name="minMessageLengthForMemory" value="<%= memorySettings.minMessageLengthForMemory %>" />
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3 class="admin-section-title">Игнорируемые паттерны</h3>
+      <div class="form-group">
+        <label class="form-label">Паттерны (по одному на строку)</label>
+        <textarea class="form-textarea" rows="10" name="ignoredMessagePatterns"><%= ignoredMessagePatternsText %></textarea>
+      </div>
+      <p class="hint">
+        Можно писать обычный текст (<code>привет</code>, <code>ок</code>) или regex в формате
+        <code>/^спасибо/i</code>.
+      </p>
+    </div>
+
+    <div class="admin-actions">
+      <button type="submit" class="btn btn-primary">Сохранить фильтры памяти</button>
+    </div>
+  </form>
+</div>
+
+<%- include('partials/footer') %>

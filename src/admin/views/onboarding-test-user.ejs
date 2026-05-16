@@ -1,0 +1,282 @@
+<%- include('partials/header', { title: 'Тест пользователю' }) %>
+
+<%
+  const userLabel = targetUser?.displayName || targetUser?.username || targetUser?.id;
+  const questionItems = Array.isArray(testQuestionsDraft) && testQuestionsDraft.length
+    ? testQuestionsDraft
+    : (Array.isArray(onboardingConfig?.testQuestions) ? onboardingConfig.testQuestions : []);
+%>
+
+<div class="admin-page-head">
+  <div>
+    <h1 class="admin-page-title">Тест для пользователя: <%= userLabel %></h1>
+    <p class="admin-page-subtitle">
+      Отдельная персональная отправка теста: AI-черновик + ручная редактура карточки и всех вопросов.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a class="btn btn-secondary btn-sm" href="/admin/users/<%= targetUser.id %>">Назад в карточку</a>
+    <a class="btn btn-secondary btn-sm" href="/admin/users/<%= targetUser.id %>/onboarding-test?prefill=memory">Черновик по памяти</a>
+    <a class="btn btn-secondary btn-sm" href="/admin/users/<%= targetUser.id %>/onboarding-test?prefill=ai">Черновик AI</a>
+    <button class="btn btn-primary btn-sm" type="button" id="generateAiDraftBtn">AI-генерация (realtime)</button>
+  </div>
+</div>
+
+<% if (success) { %><div class="alert success">Тест отправлен пользователю.</div><% } %>
+<% if (errorMessage) { %><div class="alert error"><%= errorMessage %></div><% } %>
+
+<div class="card admin-card">
+  <form id="onboardingUserSendForm" method="post" action="/admin/users/<%= targetUser.id %>/onboarding-test/send" enctype="multipart/form-data" class="admin-form">
+    <div class="form-group">
+      <label>Получатель</label>
+      <input class="form-input" value="<%= `${userLabel} (@${targetUser.username})` %>" disabled />
+    </div>
+
+    <div class="form-group">
+      <label>Заголовок карточки</label>
+      <input class="form-input" id="draftTitle" name="testCardTitle" maxlength="180" value="<%= cardDraft?.title || '' %>" required />
+    </div>
+    <div class="form-group">
+      <label>Текст карточки</label>
+      <textarea class="form-textarea" id="draftMessage" name="testCardMessage" rows="4" maxlength="2000" required><%= cardDraft?.message || '' %></textarea>
+    </div>
+
+    <div class="admin-form-grid">
+      <div class="form-group">
+        <label>Route</label>
+        <input class="form-input" id="draftRoute" name="testCardRoute" value="<%= cardDraft?.route || '/personalization-test' %>" />
+      </div>
+      <div class="form-group">
+        <label>Изображение URL (опционально)</label>
+        <input class="form-input" name="testCardImageUrl" value="<%= cardDraft?.imageUrl || '' %>" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Изображение с устройства (опционально, до 100MB)</label>
+      <input class="form-input" type="file" name="imageFile" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png,.gif,.bmp" />
+    </div>
+
+    <div class="admin-form-grid">
+      <div class="form-group">
+        <label>Кнопка «Открыть»</label>
+        <input class="form-input" id="draftPrimaryLabel" name="testCardPrimaryLabel" maxlength="80" value="<%= cardDraft?.primaryLabel || 'Пройти тест' %>" />
+      </div>
+      <div class="form-group">
+        <label>Кнопка «Позже»</label>
+        <input class="form-input" id="draftSecondaryLabel" name="testCardSecondaryLabel" maxlength="80" value="<%= cardDraft?.secondaryLabel || 'Позже' %>" />
+      </div>
+    </div>
+
+    <div id="aiDraftStatus" class="hint" style="margin-top:8px;"></div>
+
+    <div class="admin-section" style="margin-top:14px;">
+      <h3 class="admin-section-title">Персональные вопросы и варианты ответов</h3>
+      <p class="hint">После AI-генерации проверь и при необходимости отредактируй формулировки перед отправкой.</p>
+      <div id="questionEditorWrap" style="display:grid;gap:12px;">
+        <% questionItems.forEach((q, idx) => { %>
+          <div class="card" style="padding:12px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
+              <strong>Вопрос <%= idx + 1 %></strong>
+              <span class="badge badge-muted"><%= q.id %> / <%= q.type %></span>
+            </div>
+            <input type="hidden" class="js-q-id" value="<%= q.id %>" />
+            <input type="hidden" class="js-q-type" value="<%= q.type %>" />
+            <div class="form-group">
+              <label>Текст вопроса</label>
+              <input class="form-input js-q-title" maxlength="240" value="<%= q.title || '' %>" />
+            </div>
+            <div class="form-group">
+              <label>Подсказка (опционально)</label>
+              <input class="form-input js-q-hint" maxlength="240" value="<%= q.hint || '' %>" />
+            </div>
+            <% if (q.type === 'text') { %>
+              <div class="form-group" style="margin-bottom:0;">
+                <label>Placeholder</label>
+                <input class="form-input js-q-placeholder" maxlength="240" value="<%= q.placeholder || '' %>" />
+              </div>
+            <% } else { %>
+              <div class="admin-form-grid">
+                <div class="form-group">
+                  <label>Варианты (каждый с новой строки)</label>
+                  <textarea class="form-textarea js-q-options" rows="4"><%= Array.isArray(q.options) ? q.options.join('\n') : '' %></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Максимум выборов</label>
+                  <input class="form-input js-q-max" type="number" min="1" max="10" value="<%= q.maxSelections || 1 %>" />
+                </div>
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+
+      <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+        <label>JSON вопросов (служебно)</label>
+        <textarea class="form-textarea" id="testQuestionsJson" name="testQuestionsJson" rows="8"><%= JSON.stringify(questionItems, null, 2) %></textarea>
+      </div>
+    </div>
+
+    <div class="admin-actions">
+      <button type="submit" class="btn btn-primary">Отправить тест пользователю</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('onboardingUserSendForm');
+    const btn = document.getElementById('generateAiDraftBtn');
+    const statusEl = document.getElementById('aiDraftStatus');
+    const titleEl = document.getElementById('draftTitle');
+    const messageEl = document.getElementById('draftMessage');
+    const routeEl = document.getElementById('draftRoute');
+    const primaryEl = document.getElementById('draftPrimaryLabel');
+    const secondaryEl = document.getElementById('draftSecondaryLabel');
+    const hiddenJson = document.getElementById('testQuestionsJson');
+    const questionWrap = document.getElementById('questionEditorWrap');
+    if (!btn) return;
+
+    function collectQuestionCards() {
+      if (!questionWrap) return [];
+      return Array.from(questionWrap.querySelectorAll('.card'));
+    }
+
+    function buildQuestionsJson() {
+      if (!hiddenJson || !questionWrap) return true;
+      const cards = collectQuestionCards();
+      const next = [];
+
+      for (const card of cards) {
+        const id = (card.querySelector('.js-q-id')?.value || '').trim();
+        const type = (card.querySelector('.js-q-type')?.value || '').trim();
+        const title = (card.querySelector('.js-q-title')?.value || '').trim();
+        const hint = (card.querySelector('.js-q-hint')?.value || '').trim();
+        const placeholder = (card.querySelector('.js-q-placeholder')?.value || '').trim();
+        const optionsRaw = (card.querySelector('.js-q-options')?.value || '').trim();
+        const max = Number(card.querySelector('.js-q-max')?.value || 1);
+
+        if (!id || !type || !title) {
+          alert('Проверьте вопросы: id/type/title обязательны.');
+          return false;
+        }
+
+        const row = {
+          id,
+          type,
+          title,
+          hint,
+          placeholder,
+          maxSelections: Number.isFinite(max) ? max : 1
+        };
+
+        if (type !== 'text') {
+          row.options = optionsRaw
+            .split(/\n+/g)
+            .map((v) => v.trim())
+            .filter(Boolean);
+          if (!row.options.length) {
+            alert(`У вопроса ${id} должны быть варианты ответа.`);
+            return false;
+          }
+        } else {
+          row.options = [];
+        }
+
+        next.push(row);
+      }
+
+      hiddenJson.value = JSON.stringify(next, null, 2);
+      return true;
+    }
+
+    function applyQuestionsToEditor(questions) {
+      if (!Array.isArray(questions) || !questions.length || !questionWrap) return;
+      const cards = collectQuestionCards();
+      const byId = new Map();
+      for (const q of questions) {
+        const id = `${q?.id || ''}`.trim();
+        if (!id) continue;
+        byId.set(id, q);
+      }
+
+      for (const card of cards) {
+        const id = (card.querySelector('.js-q-id')?.value || '').trim();
+        if (!id || !byId.has(id)) continue;
+        const q = byId.get(id);
+        const titleInput = card.querySelector('.js-q-title');
+        const hintInput = card.querySelector('.js-q-hint');
+        const placeholderInput = card.querySelector('.js-q-placeholder');
+        const optionsInput = card.querySelector('.js-q-options');
+        const maxInput = card.querySelector('.js-q-max');
+        if (titleInput) titleInput.value = `${q.title || ''}`.trim();
+        if (hintInput) hintInput.value = `${q.hint || ''}`.trim();
+        if (placeholderInput) placeholderInput.value = `${q.placeholder || ''}`.trim();
+        if (optionsInput) {
+          const options = Array.isArray(q.options) ? q.options.map((item) => `${item || ''}`.trim()).filter(Boolean) : [];
+          optionsInput.value = options.join('\n');
+        }
+        if (maxInput) {
+          const max = Number(q.maxSelections || 1);
+          maxInput.value = Number.isFinite(max) ? max : 1;
+        }
+      }
+
+      buildQuestionsJson();
+    }
+
+    async function generateDraftRealtime() {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Генерация черновика...';
+      try {
+        const response = await fetch('/admin/users/<%= targetUser.id %>/onboarding-test/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'ai' })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.draft) {
+          throw new Error(payload?.error?.message || 'Не удалось сгенерировать черновик');
+        }
+
+        const draft = payload.draft || {};
+        if (titleEl) titleEl.value = `${draft.title || ''}`.trim();
+        if (messageEl) messageEl.value = `${draft.message || ''}`.trim();
+        if (routeEl) routeEl.value = `${draft.route || '/personalization-test'}`.trim();
+        if (primaryEl) primaryEl.value = `${draft.primaryLabel || 'Пройти тест'}`.trim();
+        if (secondaryEl) secondaryEl.value = `${draft.secondaryLabel || 'Позже'}`.trim();
+
+        const nextQuestions = Array.isArray(payload.testQuestions)
+          ? payload.testQuestions
+          : (Array.isArray(draft.testQuestions) ? draft.testQuestions : []);
+        applyQuestionsToEditor(nextQuestions);
+
+        if (statusEl) {
+          const source = `${payload.source || 'memory'}`.trim();
+          const modelUsed = `${payload.modelUsed || ''}`.trim();
+          statusEl.textContent =
+            source === 'ai'
+              ? `Готово: AI-черновик${modelUsed ? ` (${modelUsed})` : ''}.`
+              : 'Готово: черновик по памяти (fallback).';
+        }
+      } catch (error) {
+        if (statusEl) statusEl.textContent = `${error?.message || 'Ошибка генерации черновика'}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (event) {
+        if (!buildQuestionsJson()) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    btn.addEventListener('click', generateDraftRealtime);
+  })();
+</script>
+
+<%- include('partials/footer') %>

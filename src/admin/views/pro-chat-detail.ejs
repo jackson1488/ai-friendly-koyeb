@@ -1,0 +1,78 @@
+﻿<%- include('partials/header', { title: 'PRO chat detail' }) %>
+
+<a href="/admin/users/<%= user.id %>/pro-chats" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  Back to PRO chats
+</a>
+
+<div class="card" style="margin-bottom:16px;">
+  <h2 class="card-title" style="margin-bottom:12px;"><%= proChat.title || 'New PRO chat' %></h2>
+  <div style="display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; font-size:13px;">
+    <div style="color:var(--text-faint);">Client chat id:</div>
+    <div><code><%= proChat.clientChatId %></code></div>
+
+    <div style="color:var(--text-faint);">Status:</div>
+    <div>
+      <% if (proChat.isDeleted) { %>
+        <span class="badge badge-warning">Deleted by user</span>
+      <% } else { %>
+        <span class="badge badge-success">Active</span>
+      <% } %>
+    </div>
+
+    <div style="color:var(--text-faint);">Tier:</div>
+    <div><%= proChat.modelTier || 'standard' %></div>
+
+    <div style="color:var(--text-faint);">Tool mode:</div>
+    <div><%= proChat.toolMode || 'chat' %></div>
+
+    <div style="color:var(--text-faint);">Created:</div>
+    <div><%= proChat.createdAt ? proChat.createdAt.toISOString().slice(0,16).replace('T', ' ') : '—' %></div>
+
+    <div style="color:var(--text-faint);">Updated:</div>
+    <div><%= proChat.updatedAt ? proChat.updatedAt.toISOString().slice(0,16).replace('T', ' ') : '—' %></div>
+
+    <% if (proChat.deletedAt) { %>
+      <div style="color:var(--text-faint);">Deleted at:</div>
+      <div><%= proChat.deletedAt.toISOString().slice(0,16).replace('T', ' ') %></div>
+    <% } %>
+  </div>
+
+  <% if (proChat.isDeleted) { %>
+    <form method="post" action="/admin/users/<%= user.id %>/pro-chats/<%= encodeURIComponent(proChat.clientChatId) %>/restore" style="margin-top:12px;">
+      <button type="submit" class="btn btn-secondary">Restore chat</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h2 class="card-title" style="margin:0;">Messages</h2>
+    <span class="badge badge-muted"><%= Array.isArray(messages) ? messages.length : 0 %></span>
+  </div>
+
+  <% if (!messages || messages.length === 0) { %>
+    <div style="padding:16px; color:var(--text-faint);">No messages in this chat snapshot.</div>
+  <% } else { %>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <% messages.forEach((m, idx) => { %>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:var(--surface);">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <span class="badge <%= m.role === 'assistant' ? 'badge-success' : m.role === 'system' ? 'badge-muted' : 'badge-primary' %>"><%= m.role || 'user' %></span>
+            <span class="badge badge-muted"><%= m.type || 'text' %></span>
+            <span style="margin-left:auto; color:var(--text-faint); font-size:12px;">#<%= idx + 1 %></span>
+          </div>
+          <div style="white-space:pre-wrap; word-break:break-word; font-size:14px; color:var(--text);"><%= m.content || '' %></div>
+          <% if (m.imageUrl) { %>
+            <div style="margin-top:8px;"><a class="table-link" href="<%= m.imageUrl %>" target="_blank" rel="noreferrer">Open image</a></div>
+          <% } %>
+          <% if (m.videoUrl) { %>
+            <div style="margin-top:8px;"><a class="table-link" href="<%= m.videoUrl %>" target="_blank" rel="noreferrer">Open video</a></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

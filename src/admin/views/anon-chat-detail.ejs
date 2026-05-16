@@ -1,0 +1,236 @@
+<%- include('partials/header', { title: 'Анонимная сессия' }) %>
+
+<a href="/admin/anon-chats" class="back-link">← К списку анонимных чатов</a>
+
+<div class="stats-grid" style="margin-top:12px;">
+  <div class="stat-card">
+    <div class="stat-label">Session ID</div>
+    <div class="stat-sub" style="font-family:monospace; font-size:12px; color:var(--text-muted);"><%= session.id %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Статус</div>
+    <div class="stat-value <%= session.status === 'ACTIVE' ? 'warning' : '' %>"><%= session.status %></div>
+    <div class="stat-sub"><%= session.mode %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Сообщений</div>
+    <div class="stat-value accent"><%= session._count.messages %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Жалоб</div>
+    <div class="stat-value danger"><%= reports.length %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Скрытий</div>
+    <div class="stat-value warning"><%= session._count.hiddenForUsers || 0 %></div>
+  </div>
+</div>
+
+<div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+  <% const userA = session.userA; const userB = session.userB; %>
+  <% [
+    { user: userA, role: session.roles.roleA },
+    { user: userB, role: session.roles.roleB }
+  ].forEach((item) => { %>
+    <div style="border:1px solid var(--border); border-radius:12px; padding:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+        <div>
+          <a href="/admin/users/<%= item.user.id %>" class="table-link" style="font-size:15px;"><%= item.user.username %></a>
+          <div style="font-size:12px; color:var(--text-faint);"><%= item.user.displayName %></div>
+          <div style="font-size:11px; color:var(--text-faint); margin-top:3px;">role: <%= item.role %></div>
+        </div>
+        <% if (activeBans[item.user.id]) { %>
+          <span class="badge badge-danger">BAN ACTIVE</span>
+        <% } else { %>
+          <span class="badge badge-success">NO BAN</span>
+        <% } %>
+      </div>
+      <% if (item.user.isDeleted) { %>
+        <div class="badge badge-warning" style="margin-bottom:8px;">Аккаунт удалён</div>
+      <% } %>
+
+      <form method="post" action="/admin/anon-chats/<%= session.id %>/ban">
+        <input type="hidden" name="targetUserId" value="<%= item.user.id %>" />
+        <div class="form-row" style="gap:8px; align-items:flex-end;">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Бан</label>
+            <select class="form-select" name="level">
+              <option value="SOFT">SOFT</option>
+              <option value="HARD">HARD</option>
+              <option value="PERMANENT">PERMANENT</option>
+            </select>
+          </div>
+          <div class="form-group" style="width:90px;">
+            <label class="form-label">Часы</label>
+            <input class="form-input" type="number" min="1" max="2160" name="durationHours" value="24" />
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:6px;">
+          <input class="form-input" name="reason" value="Нарушения в анонимном чате" />
+        </div>
+        <button type="submit" class="btn btn-danger" style="width:100%; justify-content:center;" data-confirm="Выдать бан пользователю <%= item.user.username %> и завершить активную сессию?">Выдать бан</button>
+      </form>
+    </div>
+  <% }) %>
+</div>
+
+<% if (session.hiddenForUsers && session.hiddenForUsers.length) { %>
+  <div class="card">
+    <h2 class="card-title">Кто скрыл эту сессию</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Пользователь</th>
+            <th>Когда скрыл</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% session.hiddenForUsers.forEach((item) => { %>
+            <tr>
+              <td>
+                <% if (item.user) { %>
+                  <a href="/admin/users/<%= item.user.id %>" class="table-link"><%= item.user.username %></a>
+                  <div style="font-size:12px; color:var(--text-faint);"><%= item.user.displayName %></div>
+                <% } else { %>
+                  <span style="color:var(--text-faint);"><%= item.userId %></span>
+                <% } %>
+              </td>
+              <td style="font-size:12px; color:var(--text-faint);"><%= item.hiddenAt.toISOString().slice(0,16).replace('T',' ') %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<div class="card">
+  <h2 class="card-title">Жалобы по сессии</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Кто пожаловался</th>
+          <th>На кого</th>
+          <th>Причина</th>
+          <th>Сообщение</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!reports.length) { %>
+          <tr>
+            <td colspan="5" style="text-align:center; color:var(--text-faint); padding:20px;">Жалоб нет</td>
+          </tr>
+        <% } %>
+        <% reports.forEach((item) => { %>
+          <tr>
+            <td style="font-size:12px; color:var(--text-faint);"><%= item.createdAt.toISOString().slice(0,16).replace('T',' ') %></td>
+            <td>
+              <% if (item.reporter) { %>
+                <a href="/admin/users/<%= item.reporter.id %>" class="table-link"><%= item.reporter.username %></a>
+                <div style="font-size:12px; color:var(--text-faint);"><%= item.reporter.displayName %></div>
+              <% } else { %>
+                <span style="color:var(--text-faint);">unknown</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (item.targetUserId) { %>
+                <a href="/admin/users/<%= item.targetUserId %>" class="table-link"><%= item.targetUsername || item.targetUserId %></a>
+              <% } else { %>
+                <span style="color:var(--text-faint);">unknown</span>
+              <% } %>
+            </td>
+            <td><span class="badge badge-warning"><%= item.reason %></span></td>
+            <td style="max-width:420px; white-space:pre-wrap;"><%= item.reportedText || '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Сообщения сессии</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Отправитель</th>
+          <th>Тип</th>
+          <th>Текст</th>
+          <th>Флаги</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!messages.length) { %>
+          <tr><td colspan="5" style="text-align:center; color:var(--text-faint); padding:20px;">Сообщений нет</td></tr>
+        <% } %>
+        <% messages.forEach((item) => { %>
+          <tr>
+            <td style="font-size:12px; color:var(--text-faint);"><%= item.sentAt.toISOString().slice(0,16).replace('T',' ') %></td>
+            <td>
+              <% if (item.sender) { %>
+                <a href="/admin/users/<%= item.sender.id %>" class="table-link"><%= item.sender.username %></a>
+                <div style="font-size:12px; color:var(--text-faint);"><%= item.sender.displayName %></div>
+              <% } else { %>
+                <span style="color:var(--text-faint);"><%= item.alias || 'system' %></span>
+              <% } %>
+            </td>
+            <td><span class="badge badge-muted"><%= item.senderType %></span></td>
+            <td style="max-width:560px; white-space:pre-wrap;"><%= item.text %></td>
+            <td>
+              <% if (item.flagged) { %>
+                <span class="badge badge-danger">flagged</span>
+              <% } %>
+              <% if (item.isDeleted) { %>
+                <span class="badge badge-warning">deleted</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">Действия модерации</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Админ</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!modActions.length) { %>
+          <tr><td colspan="5" style="text-align:center; color:var(--text-faint); padding:20px;">Действий пока нет</td></tr>
+        <% } %>
+        <% modActions.forEach((action) => { %>
+          <tr>
+            <td style="font-size:12px; color:var(--text-faint);"><%= action.createdAt.toISOString().slice(0,16).replace('T',' ') %></td>
+            <td><%= action.admin?.username || action.adminId %></td>
+            <td><span class="badge badge-muted"><%= action.action %></span></td>
+            <td>
+              <% if (action.targetUser) { %>
+                <a href="/admin/users/<%= action.targetUser.id %>" class="table-link"><%= action.targetUser.username %></a>
+              <% } else { %>
+                <span style="color:var(--text-faint);">—</span>
+              <% } %>
+            </td>
+            <td style="max-width:320px; white-space:pre-wrap;"><%= action.reason || '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

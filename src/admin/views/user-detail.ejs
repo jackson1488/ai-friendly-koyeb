@@ -1,0 +1,435 @@
+<%- include('partials/header', { title: 'Пользователь — ' + user.username }) %>
+
+<%
+  const userCounts = user && user._count ? user._count : {};
+  const totalAnonChats = (userCounts.chatSessionsAsA || 0) + (userCounts.chatSessionsAsB || 0);
+  const overview = profileOverview || {};
+  const goalsList = Array.isArray(overview.goals) ? overview.goals : [];
+  const strugglesList = Array.isArray(overview.struggles) ? overview.struggles : [];
+  const supportsList = Array.isArray(overview.supports) ? overview.supports : [];
+  const focusList = Array.isArray(overview.focusAreas) ? overview.focusAreas : [];
+  const factHighlights = Array.isArray(overview.factHighlights) ? overview.factHighlights : [];
+  const userProAccessMode = userProOverride?.access || 'inherit';
+  const levelLabels = {
+    WARNING: 'WARNING',
+    SOFT: 'SOFT',
+    HARD: 'HARD',
+    PERMANENT: 'PERMANENT'
+  };
+  function dt(value) {
+    if (!value) return '—';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+%>
+
+<style>
+  .user-header { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .user-avatar { width: 62px; height: 62px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; background: var(--accent-dim); color: var(--accent); text-transform: uppercase; }
+  .user-title { font-size: 24px; margin: 0 0 6px; }
+  .user-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text-muted); font-size: 13px; }
+  .user-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 18px; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--text); }
+  .profile-list { margin: 8px 0 0; padding-left: 18px; color: var(--text); font-size: 13px; }
+  .profile-list li { margin-bottom: 6px; }
+  .status-row { display: grid; grid-template-columns: 140px 1fr; gap: 10px; margin-bottom: 8px; }
+  .status-label { color: var(--text-faint); font-size: 13px; }
+  .status-value { color: var(--text); font-size: 13px; }
+  @media (max-width: 960px) {
+    .user-layout { grid-template-columns: 1fr; }
+  }
+</style>
+
+<a href="/admin/users" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  Ко всем пользователям
+</a>
+
+<div class="user-header">
+  <div class="user-avatar"><%= user.username.charAt(0) %></div>
+  <div>
+    <h1 class="user-title">
+      <%= user.displayName %>
+      <span class="badge badge-muted" style="vertical-align:middle; margin-left:8px;"><%= user.role %></span>
+    </h1>
+    <div class="user-meta">
+      <span>@<%= user.username %></span>
+      <span>•</span>
+      <span>ID: <code class="mono"><%= user.id %></code></span>
+      <span>•</span>
+      <% if (user.isDeleted) { %>
+        <span class="badge badge-warning">Удален</span>
+      <% } else if (user.isBlocked) { %>
+        <span class="badge badge-danger">Глобально заблокирован</span>
+      <% } else { %>
+        <span class="badge badge-success">Активен</span>
+      <% } %>
+      <% if (activeAnonBan) { %>
+        <span class="badge badge-warning">ANON бан: <%= levelLabels[activeAnonBan.level] || activeAnonBan.level %></span>
+      <% } %>
+      <% if (activeGlobalBan) { %>
+        <span class="badge badge-danger">GLOBAL бан: <%= levelLabels[activeGlobalBan.level] || activeGlobalBan.level %></span>
+      <% } %>
+      <span style="margin-left:auto; color:var(--text-faint);">Создан: <%= user.createdAt.toLocaleDateString('ru-RU') %></span>
+    </div>
+  </div>
+</div>
+
+<div class="user-layout">
+  <div class="user-left">
+    <div class="stats-grid">
+      <div class="stat-card" style="padding: 16px;">
+        <div class="stat-label">Чатов</div>
+        <div class="stat-value accent"><%= userCounts.chats || 0 %></div>
+      </div>
+      <div class="stat-card" style="padding: 16px;">
+        <div class="stat-label">PRO чатов</div>
+        <div class="stat-value accent"><%= userCounts.proChats || 0 %></div>
+      </div>
+      <div class="stat-card" style="padding: 16px;">
+        <div class="stat-label">Настроений</div>
+        <div class="stat-value"><%= userCounts.moodEntries || 0 %></div>
+      </div>
+      <div class="stat-card" style="padding: 16px;">
+        <div class="stat-label">Anon чатов</div>
+        <div class="stat-value"><%= totalAnonChats %></div>
+      </div>
+      <div class="stat-card" style="padding: 16px; border-color: <%= (userCounts.crisisEvents || 0) > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)' %>">
+        <div class="stat-label">Кризисов</div>
+        <div class="stat-value <%= (userCounts.crisisEvents || 0) > 0 ? 'danger' : '' %>"><%= userCounts.crisisEvents || 0 %></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 class="card-title" style="margin:0;">Последние чаты</h2>
+        <a href="/admin/users/<%= user.id %>/chats" class="btn btn-secondary btn-sm">Смотреть все</a>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Название</th><th>Статус</th><th>Обновлен</th><th></th></tr></thead>
+          <tbody>
+            <% if (user.chats.length === 0) { %>
+              <tr><td colspan="4" style="text-align:center; color:var(--text-faint); padding:24px;">Чатов пока нет</td></tr>
+            <% } %>
+            <% user.chats.forEach((chat) => { %>
+              <tr>
+                <td>
+                  <a href="/admin/chats/<%= chat.id %>/messages" class="table-link"><%= chat.title || 'Новый чат' %></a>
+                </td>
+                <td>
+                  <% if (chat.isDeleted) { %>
+                    <span class="badge badge-warning">Удален</span>
+                  <% } else { %>
+                    <span class="badge badge-success">Активен</span>
+                  <% } %>
+                </td>
+                <td style="color:var(--text-faint); font-variant-numeric: tabular-nums;"><%= chat.updatedAt.toISOString().slice(0,16).replace('T', ' ') %></td>
+                <td>
+                  <% if (chat.isDeleted) { %>
+                    <form method="post" action="/admin/users/<%= user.id %>/chats/<%= chat.id %>/restore" style="margin:0;">
+                      <button type="submit" class="btn btn-sm btn-secondary">Восстановить</button>
+                    </form>
+                  <% } else { %>
+                    <span style="color:var(--text-faint); font-size:12px;">?</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 class="card-title" style="margin:0;">PRO чаты</h2>
+        <a href="/admin/users/<%= user.id %>/pro-chats" class="btn btn-secondary btn-sm">Смотреть все</a>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Название</th><th>Статус</th><th>Обновлен</th><th></th></tr></thead>
+          <tbody>
+            <% if (!user.proChats || user.proChats.length === 0) { %>
+              <tr><td colspan="4" style="text-align:center; color:var(--text-faint); padding:24px;">PRO чатов пока нет</td></tr>
+            <% } %>
+            <% (user.proChats || []).forEach((chat) => { %>
+              <tr>
+                <td>
+                  <a href="/admin/users/<%= user.id %>/pro-chats/<%= encodeURIComponent(chat.clientChatId) %>" class="table-link"><%= chat.title || 'Новый PRO чат' %></a>
+                </td>
+                <td>
+                  <% if (chat.isDeleted) { %>
+                    <span class="badge badge-warning">Удален пользователем</span>
+                  <% } else { %>
+                    <span class="badge badge-success">Активен</span>
+                  <% } %>
+                </td>
+                <td style="color:var(--text-faint); font-variant-numeric: tabular-nums;"><%= chat.updatedAt.toISOString().slice(0,16).replace('T', ' ') %></td>
+                <td>
+                  <% if (chat.isDeleted) { %>
+                    <form method="post" action="/admin/users/<%= user.id %>/pro-chats/<%= encodeURIComponent(chat.clientChatId) %>/restore" style="margin:0;">
+                      <button type="submit" class="btn btn-sm btn-secondary">Восстановить</button>
+                    </form>
+                  <% } else { %>
+                    <span style="color:var(--text-faint); font-size:12px;">?</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 class="card-title" style="margin:0;">Анонимные чаты</h2>
+        <a href="/admin/anon-chats?q=<%= encodeURIComponent(user.username) %>" class="btn btn-secondary btn-sm">Все anon-чаты</a>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Сессия</th>
+              <th>Партнер</th>
+              <th>Статус</th>
+              <th>Видимость</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!anonSessions || anonSessions.length === 0) { %>
+              <tr><td colspan="5" style="text-align:center; color:var(--text-faint); padding:24px;">Анонимных чатов пока нет</td></tr>
+            <% } %>
+            <% (anonSessions || []).forEach((session) => { %>
+              <tr>
+                <td>
+                  <a href="/admin/anon-chats/<%= session.id %>" class="table-link"><%= session.id.slice(0, 12) %></a>
+                  <div style="font-size:12px; color:var(--text-faint);"><%= dt(session.startedAt) %></div>
+                </td>
+                <td>
+                  <a href="/admin/users/<%= session.partner.id %>" class="table-link"><%= session.partner.username %></a>
+                </td>
+                <td>
+                  <span class="badge <%= `${session.status}`.toUpperCase() === 'ACTIVE' ? 'badge-success' : 'badge-muted' %>"><%= session.status %></span>
+                </td>
+                <td>
+                  <% if (session.hiddenForUsersCount > 0) { %>
+                    <span class="badge badge-warning">Скрыт: <%= session.hiddenForUsersCount %></span>
+                  <% } else { %>
+                    <span class="badge badge-success">Виден</span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (session.isHiddenByUser) { %>
+                    <form method="post" action="/admin/users/<%= user.id %>/anon-sessions/<%= session.id %>/restore" style="margin:0;">
+                      <button type="submit" class="btn btn-sm btn-secondary">Восстановить</button>
+                    </form>
+                  <% } else { %>
+                    <span style="color:var(--text-faint); font-size:12px;">?</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="user-right">
+    <div class="card">
+      <h2 class="card-title">Аккаунт и доступ</h2>
+      <div class="status-row">
+        <div class="status-label">Аккаунт:</div>
+        <div class="status-value">
+          <% if (user.isDeleted) { %>
+            <span class="badge badge-warning">Удален</span>
+          <% } else { %>
+            <span class="badge badge-success">Активен</span>
+          <% } %>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Глобальный бан:</div>
+        <div class="status-value">
+          <% if (activeGlobalBan || user.isBlocked) { %>
+            <span class="badge badge-danger">Да</span>
+          <% } else { %>
+            <span class="badge badge-success">Нет</span>
+          <% } %>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Anon-бан:</div>
+        <div class="status-value">
+          <% if (activeAnonBan) { %>
+            <span class="badge badge-warning"><%= levelLabels[activeAnonBan.level] || activeAnonBan.level %></span>
+          <% } else { %>
+            <span class="badge badge-success">Нет</span>
+          <% } %>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">PRO модуль:</div>
+        <div class="status-value"><%= proConfig && proConfig.enabled ? 'Включен' : 'Выключен' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">PRO доступ:</div>
+        <div class="status-value">
+          <span class="badge <%= userProAllowed ? 'badge-success' : 'badge-muted' %>"><%= userProAllowed ? 'Разрешен' : 'Запрещен' %></span>
+          <span style="margin-left:8px; color:var(--text-faint);">(<%= userProAccessMode %>)</span>
+        </div>
+      </div>
+      <div class="admin-note">Критичные действия вынесены в отдельный раздел безопасности.</div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Профиль пользователя</h2>
+      <div class="status-row">
+        <div class="status-label">Возраст:</div>
+        <div class="status-value"><%= Number.isFinite(overview.age) ? `${overview.age} лет` : 'не указан' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Память обновлена:</div>
+        <div class="status-value"><%= memoryProfileUpdatedAt ? dt(memoryProfileUpdatedAt) : '—' %></div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="status-label">Цели</div>
+        <% if (goalsList.length) { %>
+          <div class="chip-list">
+            <% goalsList.forEach((goal) => { %>
+              <span class="chip"><%= goal %></span>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="admin-note">Нет данных</div>
+        <% } %>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="status-label">С чем борется</div>
+        <% if (strugglesList.length) { %>
+          <ul class="profile-list">
+            <% strugglesList.forEach((item) => { %><li><%= item %></li><% }) %>
+          </ul>
+        <% } else { %>
+          <div class="admin-note">Нет данных</div>
+        <% } %>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="status-label">Что помогает</div>
+        <% if (supportsList.length) { %>
+          <ul class="profile-list">
+            <% supportsList.forEach((item) => { %><li><%= item %></li><% }) %>
+          </ul>
+        <% } else { %>
+          <div class="admin-note">Нет данных</div>
+        <% } %>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="status-label">Фокус тем</div>
+        <% if (focusList.length) { %>
+          <div class="chip-list">
+            <% focusList.forEach((item) => { %>
+              <span class="chip"><%= item %></span>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="admin-note">Нет данных</div>
+        <% } %>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="status-label">Последние факты из памяти</div>
+        <% if (factHighlights.length) { %>
+          <ul class="profile-list">
+            <% factHighlights.forEach((item) => { %><li><%= item %></li><% }) %>
+          </ul>
+        <% } else { %>
+          <div class="admin-note">Нет данных</div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Память Alma</h2>
+      <p class="hint">Доступ к персональным фактам и пересборке памяти по всем сессиям пользователя.</p>
+      <a href="/admin/memory/<%= user.id %>" class="btn btn-primary" style="width:100%; justify-content:center;">Управление памятью</a>
+      <form method="post" action="/admin/users/<%= user.id %>/memory/rebuild" style="margin-top:10px;">
+        <input type="hidden" name="redirectTo" value="/admin/users/<%= user.id %>" />
+        <button type="submit" class="btn btn-secondary" style="width:100%; justify-content:center;" data-confirm="Пересобрать память пользователя по всем сессиям?">Обновить память</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Управление</h2>
+      <p class="hint">Отдельные разделы для безопасности и PRO-настроек пользователя.</p>
+      <a href="/admin/users/<%= user.id %>/security" class="btn btn-primary" style="width:100%; justify-content:center;">Открыть безопасность</a>
+      <a href="/admin/users/<%= user.id %>/pro" class="btn btn-secondary" style="width:100%; justify-content:center; margin-top:8px;">Открыть PRO доступ</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Inbox: отправка этому пользователю</h2>
+      <p class="hint">Мгновенная карточка только для этого пользователя (NEWS/SYSTEM).</p>
+      <form method="post" action="/admin/users/<%= user.id %>/inbox/send" enctype="multipart/form-data">
+        <input type="hidden" name="redirectTo" value="/admin/users/<%= user.id %>" />
+        <div class="form-group">
+          <label>Тип</label>
+          <select class="form-select" name="type">
+            <option value="NEWS">Новость</option>
+            <option value="SYSTEM" selected>Системное</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Заголовок</label>
+          <input class="form-input" name="title" maxlength="180" required />
+        </div>
+        <div class="form-group">
+          <label>Текст</label>
+          <textarea class="form-textarea" rows="3" name="message" maxlength="2000" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Маршрут (опционально)</label>
+          <input class="form-input" name="route" placeholder="/personalization-test" />
+        </div>
+        <div class="form-group">
+          <label>Текст кнопки «Открыть» (опционально)</label>
+          <input class="form-input" name="primaryLabel" placeholder="Открыть" />
+        </div>
+        <div class="form-group">
+          <label>URL изображения (опционально)</label>
+          <input class="form-input" name="imageUrl" placeholder="https://.../cover.jpg" />
+        </div>
+        <div class="form-group">
+          <label>Изображение с устройства (опционально)</label>
+          <input class="form-input" type="file" name="imageFile" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png,.gif,.bmp" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Текст кнопки «Позже» (опционально)</label>
+          <input class="form-input" name="secondaryLabel" placeholder="Позже" />
+        </div>
+        <div class="admin-actions" style="margin-top:12px;">
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Отправить сейчас</button>
+        </div>
+      </form>
+      <a href="/admin/users/<%= user.id %>/onboarding-test" class="btn btn-secondary" style="width:100%; justify-content:center; margin-top:10px;">
+        Открыть отдельный экран теста для этого пользователя
+      </a>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

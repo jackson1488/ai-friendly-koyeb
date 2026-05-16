@@ -1,0 +1,31 @@
+﻿node_modules/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+
+# SQLite runtime files
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-wal
+prisma/*.db-shm
+
+# Runtime uploads. Keep the folder placeholder only.
+uploads/*
+!uploads/.gitkeep
+
+coverage/
+dist/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local Docker/Koyeb volume data
+.data/
+

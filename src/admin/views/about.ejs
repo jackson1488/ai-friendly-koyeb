@@ -1,0 +1,377 @@
+<%- include('partials/header', { title: 'О приложении' }) %>
+
+<%
+  const currentSection = `${section || 'developers'}`.trim().toLowerCase();
+  const navItems = Array.isArray(sectionNav) ? sectionNav : [];
+  const devList = Array.isArray(developers) ? developers : [];
+  const faqList = Array.isArray(faqItems) ? faqItems : [];
+  const supportInfo = support || {};
+  const info = appInfo || {};
+  const roleList = Array.isArray(roleOptions) ? roleOptions : [];
+  const colorsMap = roleColors || {};
+  const legal = legalByType || {};
+  const legalPreset = legalDefaults || {};
+
+  let socials = {};
+  try {
+    socials = typeof info.socialsJson === 'string' ? JSON.parse(info.socialsJson || '{}') : {};
+  } catch (_error) {
+    socials = {};
+  }
+
+  function dt(value) {
+    if (!value) return '—';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+%>
+
+<div class="admin-page-head">
+  <div>
+    <h1 class="admin-page-title">О приложении</h1>
+    <p class="admin-page-subtitle">
+      Серверная админка — единственный источник правды для команды, документов, FAQ, поддержки и метаданных приложения.
+    </p>
+  </div>
+  <p class="meta">Редактирование доступно только в web-админке</p>
+</div>
+
+<div class="admin-pill-nav">
+  <% navItems.forEach((item) => { %>
+    <a href="<%= item.href %>" class="admin-pill-link <%= item.active ? 'active' : '' %>"><%= item.label %></a>
+  <% }) %>
+</div>
+
+<% if (success) { %>
+  <div class="alert success">Изменения сохранены.</div>
+<% } %>
+<% if (errorMessage) { %>
+  <div class="alert error"><%= errorMessage %></div>
+<% } %>
+
+<% if (currentSection === 'developers') { %>
+  <div class="card">
+    <h2 class="card-title">Добавить разработчика</h2>
+    <form method="post" action="/admin/about/developers/create" enctype="multipart/form-data">
+      <div class="pro-grid-3">
+        <div class="form-group">
+          <label>Имя</label>
+          <input class="form-input" name="name" required />
+        </div>
+        <div class="form-group">
+          <label>Роль</label>
+          <select class="form-select" name="role" required>
+            <% roleList.forEach((role) => { %>
+              <option value="<%= role %>"><%= role %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Фото</label>
+          <input class="form-input" type="file" name="photo" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png" />
+        </div>
+      </div>
+      <div class="pro-grid-2">
+        <div class="form-group">
+          <label>GitHub</label>
+          <input class="form-input" name="github" placeholder="https://github.com/..." />
+        </div>
+        <div class="form-group">
+          <label>LinkedIn</label>
+          <input class="form-input" name="linkedin" placeholder="https://linkedin.com/in/..." />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Bio</label>
+        <textarea class="form-textarea" name="bio" rows="3" required></textarea>
+      </div>
+      <div class="form-group">
+        <label>Вклад в проект (через запятую или с новой строки)</label>
+        <textarea class="form-textarea" name="contribution" rows="3" placeholder="UI, API, инфраструктура"></textarea>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">Добавить</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Список разработчиков</h2>
+    <% if (!devList.length) { %>
+      <p class="hint">Пока нет записей.</p>
+    <% } %>
+    <% devList.forEach((dev, idx) => { %>
+      <div class="admin-section" style="margin-bottom: 12px;">
+        <div class="mode-card-header">
+          <div>
+            <strong><%= dev.name %></strong>
+            <span class="badge badge-muted" style="margin-left: 8px; color:<%= colorsMap[dev.role] || '#667eea' %>;"><%= dev.role %></span>
+            <span class="hint" style="margin-left: 8px;">Обновлено: <%= dt(dev.updatedAt) %></span>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <form method="post" action="/admin/about/developers/reorder">
+              <input type="hidden" name="id" value="<%= dev.id %>" />
+              <input type="hidden" name="direction" value="up" />
+              <button class="btn btn-secondary btn-sm" type="submit" <%= idx === 0 ? 'disabled' : '' %>>↑</button>
+            </form>
+            <form method="post" action="/admin/about/developers/reorder">
+              <input type="hidden" name="id" value="<%= dev.id %>" />
+              <input type="hidden" name="direction" value="down" />
+              <button class="btn btn-secondary btn-sm" type="submit" <%= idx === devList.length - 1 ? 'disabled' : '' %>>↓</button>
+            </form>
+            <form method="post" action="/admin/about/developers/<%= dev.id %>/delete" onsubmit="return confirm('Удалить разработчика?');">
+              <button class="btn btn-danger btn-sm" type="submit">Удалить</button>
+            </form>
+          </div>
+        </div>
+
+        <form method="post" action="/admin/about/developers/<%= dev.id %>/update" enctype="multipart/form-data">
+          <div class="pro-grid-3">
+            <div class="form-group">
+              <label>Имя</label>
+              <input class="form-input" name="name" value="<%= dev.name %>" required />
+            </div>
+            <div class="form-group">
+              <label>Роль</label>
+              <select class="form-select" name="role" required>
+                <% roleList.forEach((role) => { %>
+                  <option value="<%= role %>" <%= dev.role === role ? 'selected' : '' %>><%= role %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Заменить фото</label>
+              <input class="form-input" type="file" name="photo" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png" />
+            </div>
+          </div>
+
+          <% if (dev.photo) { %>
+            <div class="hint" style="margin-bottom: 8px;">
+              <a class="table-link" href="<%= dev.photo %>" target="_blank" rel="noreferrer">Текущее фото</a>
+            </div>
+          <% } %>
+
+          <div class="pro-grid-2">
+            <div class="form-group">
+              <label>GitHub</label>
+              <input class="form-input" name="github" value="<%= dev.github || '' %>" />
+            </div>
+            <div class="form-group">
+              <label>LinkedIn</label>
+              <input class="form-input" name="linkedin" value="<%= dev.linkedin || '' %>" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Bio</label>
+            <textarea class="form-textarea" name="bio" rows="3" required><%= dev.bio || '' %></textarea>
+          </div>
+          <div class="form-group">
+            <label>Вклад в проект</label>
+            <textarea class="form-textarea" name="contribution" rows="3"><%= Array.isArray(dev.contribution) ? dev.contribution.join(', ') : '' %></textarea>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-primary" type="submit">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<% if (currentSection === 'legal') { %>
+  <div class="card">
+    <h2 class="card-title">Политика конфиденциальности</h2>
+    <form method="post" action="/admin/about/legal/privacy">
+      <div class="hint" style="margin-bottom: 8px;">Последнее обновление: <%= dt(legal.privacy && legal.privacy.updatedAt) %></div>
+      <textarea class="form-textarea" name="content" rows="18" required><%= (legal.privacy && legal.privacy.content) || legalPreset.privacy || '' %></textarea>
+      <div class="admin-actions" style="margin-top: 10px;">
+        <button class="btn btn-primary" type="submit">Сохранить политику</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Пользовательское соглашение</h2>
+    <form method="post" action="/admin/about/legal/terms">
+      <div class="hint" style="margin-bottom: 8px;">Последнее обновление: <%= dt(legal.terms && legal.terms.updatedAt) %></div>
+      <textarea class="form-textarea" name="content" rows="18" required><%= (legal.terms && legal.terms.content) || legalPreset.terms || '' %></textarea>
+      <div class="admin-actions" style="margin-top: 10px;">
+        <button class="btn btn-primary" type="submit">Сохранить соглашение</button>
+      </div>
+    </form>
+  </div>
+<% } %>
+
+<% if (currentSection === 'faq') { %>
+  <div class="card">
+    <h2 class="card-title">Добавить FAQ</h2>
+    <form method="post" action="/admin/about/faq/create">
+      <div class="pro-grid-3">
+        <div class="form-group">
+          <label>Категория</label>
+          <input class="form-input" name="category" required />
+        </div>
+        <div class="form-group">
+          <label>Цвет тега</label>
+          <input class="form-input" name="color" placeholder="#667eea" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Вопрос</label>
+        <input class="form-input" name="question" required />
+      </div>
+      <div class="form-group">
+        <label>Ответ</label>
+        <textarea class="form-textarea" name="answer" rows="4" required></textarea>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">Добавить</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Текущий FAQ</h2>
+    <% if (!faqList.length) { %>
+      <p class="hint">Пока нет вопросов.</p>
+    <% } %>
+    <% faqList.forEach((item, idx) => { %>
+      <div class="admin-section" style="margin-bottom: 12px;">
+        <div class="mode-card-header">
+          <strong><%= item.question %></strong>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <form method="post" action="/admin/about/faq/reorder">
+              <input type="hidden" name="id" value="<%= item.id %>" />
+              <input type="hidden" name="direction" value="up" />
+              <button class="btn btn-secondary btn-sm" type="submit" <%= idx === 0 ? 'disabled' : '' %>>↑</button>
+            </form>
+            <form method="post" action="/admin/about/faq/reorder">
+              <input type="hidden" name="id" value="<%= item.id %>" />
+              <input type="hidden" name="direction" value="down" />
+              <button class="btn btn-secondary btn-sm" type="submit" <%= idx === faqList.length - 1 ? 'disabled' : '' %>>↓</button>
+            </form>
+            <form method="post" action="/admin/about/faq/<%= item.id %>/delete" onsubmit="return confirm('Удалить вопрос FAQ?');">
+              <button class="btn btn-danger btn-sm" type="submit">Удалить</button>
+            </form>
+          </div>
+        </div>
+
+        <form method="post" action="/admin/about/faq/<%= item.id %>/update">
+          <div class="pro-grid-3">
+            <div class="form-group">
+              <label>Категория</label>
+              <input class="form-input" name="category" value="<%= item.category %>" required />
+            </div>
+            <div class="form-group">
+              <label>Цвет</label>
+              <input class="form-input" name="color" value="<%= item.color %>" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Вопрос</label>
+            <input class="form-input" name="question" value="<%= item.question %>" required />
+          </div>
+          <div class="form-group">
+            <label>Ответ</label>
+            <textarea class="form-textarea" name="answer" rows="4" required><%= item.answer %></textarea>
+          </div>
+          <div class="admin-actions">
+            <button class="btn btn-primary" type="submit">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<% if (currentSection === 'support') { %>
+  <div class="card">
+    <h2 class="card-title">Контакты и статус поддержки</h2>
+    <form method="post" action="/admin/about/support/update">
+      <div class="pro-grid-2">
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-input" name="email" value="<%= supportInfo.email || '' %>" required />
+        </div>
+        <div class="form-group">
+          <label>Среднее время ответа</label>
+          <input class="form-input" name="avgResponseTime" value="<%= supportInfo.avgResponseTime || '' %>" required />
+        </div>
+      </div>
+      <div class="pro-grid-2">
+        <div class="form-group">
+          <label>Telegram</label>
+          <input class="form-input" name="telegram" value="<%= supportInfo.telegram || '' %>" />
+        </div>
+        <div class="form-group">
+          <label>Instagram</label>
+          <input class="form-input" name="instagram" value="<%= supportInfo.instagram || '' %>" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Статус</label>
+        <select class="form-select" name="status">
+          <option value="online" <%= `${supportInfo.status || ''}`.toLowerCase() === 'online' ? 'selected' : '' %>>Онлайн 🟢</option>
+          <option value="offline" <%= `${supportInfo.status || ''}`.toLowerCase() === 'offline' ? 'selected' : '' %>>Оффлайн 🔴</option>
+        </select>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </div>
+<% } %>
+
+<% if (currentSection === 'app') { %>
+  <div class="card">
+    <h2 class="card-title">Метаданные приложения</h2>
+    <form method="post" action="/admin/about/app/update">
+      <div class="pro-grid-3">
+        <div class="form-group">
+          <label>Название</label>
+          <input class="form-input" name="name" value="<%= info.name || '' %>" required />
+        </div>
+        <div class="form-group">
+          <label>Версия</label>
+          <input class="form-input" name="version" value="<%= info.version || '' %>" required />
+        </div>
+        <div class="form-group">
+          <label>Лого (URL)</label>
+          <input class="form-input" name="logo" value="<%= info.logo || '' %>" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Описание</label>
+        <textarea class="form-textarea" name="description" rows="5" required><%= info.description || '' %></textarea>
+      </div>
+
+      <div class="pro-grid-3">
+        <div class="form-group">
+          <label>Telegram</label>
+          <input class="form-input" name="socialTelegram" value="<%= socials.telegram || '' %>" />
+        </div>
+        <div class="form-group">
+          <label>Instagram</label>
+          <input class="form-input" name="socialInstagram" value="<%= socials.instagram || '' %>" />
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input class="form-input" name="socialWebsite" value="<%= socials.website || '' %>" />
+        </div>
+      </div>
+
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </div>
+<% } %>

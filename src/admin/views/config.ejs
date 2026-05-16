@@ -1,0 +1,150 @@
+<%- include('partials/header', { title: 'Конфиг системы' }) %>
+
+<div class="admin-page-head">
+  <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <span class="badge badge-accent">System Config</span>
+      <span class="badge badge-muted">OpenRouter</span>
+      <span class="badge badge-muted">Language Policy</span>
+    </div>
+    <p class="meta">Центральные настройки модели, ключей, промптов и языковой политики Alma.</p>
+  </div>
+</div>
+
+<div class="card admin-card">
+  <form method="post" action="/admin/config" class="admin-form">
+    <div class="admin-section">
+      <h3 class="admin-section-title">1) Настройки ИИ</h3>
+      <p class="hint">В списке указаны бесплатные модели OpenRouter (free). Если нужна другая, выберите "Своя модель" и введите вручную.</p>
+
+      <div class="form-group">
+        <label class="form-label">Быстрый выбор модели</label>
+        <select class="form-select" name="openrouterModelPreset" id="openrouterModelPreset">
+          <% modelPresets.forEach((model) => { %>
+            <option value="<%= model %>" <%= config.openrouterModel === model ? 'selected' : '' %>><%= model %></option>
+          <% }) %>
+          <option value="__custom__" <%= modelPresets.includes(config.openrouterModel) ? '' : 'selected' %>>Своя модель</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Модель OpenRouter (вручную)</label>
+        <input class="form-input" id="openrouterModel" name="openrouterModel" value="<%= config.openrouterModel %>" placeholder="например: openai/gpt-4o-mini" />
+      </div>
+
+      <p class="hint">
+        Изменения модели применяются сразу для новых сообщений. Если текущая модель или ключ недоступны,
+        пользователи увидят мягкое сообщение о недоступности ИИ без экрана ошибки.
+      </p>
+    </div>
+
+    <div class="admin-section">
+      <h3 class="admin-section-title">2) API-ключ OpenRouter</h3>
+      <% if (openrouterApiKeyMasked) { %>
+        <p class="hint">Сейчас используется ключ из БД: <code><%= openrouterApiKeyMasked %></code></p>
+      <% } else { %>
+        <p class="hint">Ключ в БД пока не сохранен. Если ключ есть в .env, сервер использует его.</p>
+      <% } %>
+
+      <div class="form-group">
+        <label class="form-label">Новый API-ключ (оставьте пустым, чтобы не менять)</label>
+        <input class="form-input" name="openrouterApiKey" value="" placeholder="sk-or-v1-..." autocomplete="off" />
+      </div>
+
+      <label class="checkbox-row">
+        <input class="form-input" type="checkbox" name="clearOpenrouterApiKey" value="true" />
+        Очистить ключ из БД и использовать ключ из .env (если он задан)
+      </label>
+    </div>
+
+    <div class="admin-section">
+      <h3 class="admin-section-title">3) Промпты</h3>
+      <div class="form-group">
+        <label class="form-label">Системный промпт</label>
+        <textarea class="form-textarea" rows="7" name="systemPrompt"><%= config.systemPrompt %></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Промпт безопасности</label>
+        <textarea class="form-textarea" rows="7" name="safetyPrompt"><%= config.safetyPrompt %></textarea>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3 class="admin-section-title">4) Языковая политика Alma</h3>
+      <label class="checkbox-row">
+        <input
+          class="form-input"
+          type="checkbox"
+          name="languagePolicyEnabled"
+          value="true"
+          <%= languagePolicy && languagePolicy.enabled ? 'checked' : '' %>
+        />
+        Включить ограничение языков (RU / KY / EN)
+      </label>
+
+      <div class="form-group">
+        <label class="form-label">Разрешённые языки</label>
+        <div class="admin-checkbox-grid">
+          <% (languageOptions || []).forEach((item) => { %>
+            <label class="checkbox-row" style="margin:0;">
+              <input
+                class="form-input"
+                type="checkbox"
+                name="allowedLanguages"
+                value="<%= item.code %>"
+                <%= ((languagePolicy && languagePolicy.allowedLanguages) || []).includes(item.code) ? 'checked' : '' %>
+              />
+              <%= item.label %> (<%= item.code %>)
+            </label>
+          <% }) %>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Сообщение при неподдерживаемом языке (на английском)</label>
+        <textarea class="form-textarea" rows="3" name="unsupportedLanguageMessage"><%= (languagePolicy && languagePolicy.unsupportedLanguageMessage) || '' %></textarea>
+      </div>
+      <p class="hint">Это сообщение отправляется пользователю сразу, без вызова ИИ, если язык не поддерживается.</p>
+    </div>
+
+    <div class="admin-section">
+      <h3 class="admin-section-title">5) Дополнительно</h3>
+      <div class="form-group">
+        <label class="form-label">Фича-флаги (JSON)</label>
+        <textarea class="form-textarea" rows="5" name="featureFlagsJson"><%= config.featureFlagsJson %></textarea>
+      </div>
+      <p class="hint">
+        Расширенные параметры памяти Alma настраиваются в разделе
+        <a href="/admin/memory-settings" class="table-link">Память</a>.
+        Сейчас сводка в память создаётся каждые <b><%= memorySettings.summarizeEveryMessages %></b> сообщений.
+        Фильтры незначимых реплик: <a href="/admin/memory-filters" class="table-link">открыть</a>.
+      </p>
+    </div>
+
+    <div class="admin-actions">
+      <button type="submit" class="btn btn-primary">Сохранить конфигурацию</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    var preset = document.getElementById('openrouterModelPreset');
+    var modelInput = document.getElementById('openrouterModel');
+    if (!preset || !modelInput) return;
+
+    function syncModel() {
+      if (preset.value && preset.value !== '__custom__') {
+        modelInput.value = preset.value;
+        modelInput.setAttribute('readonly', 'readonly');
+      } else {
+        modelInput.removeAttribute('readonly');
+      }
+    }
+
+    preset.addEventListener('change', syncModel);
+    syncModel();
+  })();
+</script>
+
+<%- include('partials/footer') %>

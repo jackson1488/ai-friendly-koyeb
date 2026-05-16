@@ -1,0 +1,53 @@
+<%- include('partials/header', { title: 'Режимы ИИ' }) %>
+
+<div class="admin-page-head">
+  <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <span class="badge badge-accent">AI Modes</span>
+      <span class="badge badge-muted">Prompts</span>
+      <span class="badge badge-muted">Activation</span>
+    </div>
+    <p class="meta">Вы вошли как <%= admin.username %></p>
+    <p class="hint">Настройка названий, эмодзи и системных промптов режимов в едином стиле панели.</p>
+  </div>
+</div>
+
+<% modes.forEach((mode) => { %>
+  <div class="card admin-card">
+    <form method="post" action="/admin/modes/<%= mode.id %>" class="admin-form">
+      <div class="mode-card-header">
+        <h3 class="admin-section-title"><%= mode.emoji %> <%= mode.name %></h3>
+        <span class="mode-key"><%= mode.key %></span>
+      </div>
+
+      <div class="admin-form-grid">
+        <div class="form-group">
+          <label class="form-label">Название</label>
+          <input class="form-input" name="name" value="<%= mode.name %>" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Emoji</label>
+          <input class="form-input" name="emoji" value="<%= mode.emoji %>" required />
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="form-group">
+          <label class="form-label">Системный промпт</label>
+          <textarea class="form-textarea" name="systemPrompt" rows="10" required><%= mode.systemPrompt %></textarea>
+        </div>
+      </div>
+
+      <label class="checkbox-row">
+        <input class="form-input" type="checkbox" name="isActive" value="true" <%= mode.isActive ? 'checked' : '' %> />
+        Активен
+      </label>
+
+      <div class="admin-actions">
+        <button type="submit" class="btn btn-primary">Сохранить режим</button>
+      </div>
+    </form>
+  </div>
+<% }) %>
+
+<%- include('partials/footer') %>

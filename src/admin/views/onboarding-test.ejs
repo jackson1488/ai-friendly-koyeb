@@ -1,0 +1,376 @@
+﻿<%- include('partials/header', { title: 'Онбординг-тест' }) %>
+
+<%
+  const userOptions = Array.isArray(users) ? users : [];
+  const questionItems = Array.isArray(onboardingConfig?.testQuestions) ? onboardingConfig.testQuestions : [];
+  const testCard = onboardingConfig?.testCard && typeof onboardingConfig.testCard === 'object'
+    ? onboardingConfig.testCard
+    : {};
+%>
+
+<div class="admin-page-head">
+  <div>
+    <h1 class="admin-page-title">Онбординг-рассылка: тесты</h1>
+    <p class="admin-page-subtitle">
+      Тесты отправляются только из этого раздела. В Inbox остаются только NEWS/SYSTEM.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <% if (success) { %><span class="badge badge-success">Настройки сохранены</span><% } %>
+    <% if (sent) { %><span class="badge badge-success">Тест отправлен</span><% } %>
+    <% if (forced) { %><span class="badge badge-warning">Кампания принудительно перезапущена</span><% } %>
+    <span class="badge badge-muted">Версия: <%= onboardingConfig.campaignVersion %></span>
+  </div>
+</div>
+
+<% if (errorMessage) { %>
+  <div class="alert error"><%= errorMessage %></div>
+<% } %>
+
+<div class="admin-split-layout">
+  <div class="admin-split-stack">
+    <div class="card admin-card">
+      <h2 class="card-title">1) Настройки кампании и контента теста</h2>
+      <form method="post" action="/admin/onboarding-test" class="admin-form" id="onboardingConfigForm">
+        <div class="admin-section">
+          <h3 class="admin-section-title">Общие настройки</h3>
+          <label class="checkbox-row">
+            <input class="form-input" type="checkbox" name="enabled" value="true" <%= onboardingConfig.enabled ? 'checked' : '' %> />
+            Включить онбординг-тест
+          </label>
+          <div class="admin-form-grid" style="margin-top:12px;">
+            <div class="form-group">
+              <label class="form-label">Версия кампании</label>
+              <input class="form-input" type="number" min="1" max="99999" step="1" name="campaignVersion" value="<%= onboardingConfig.campaignVersion %>" />
+              <p class="hint">Увеличивайте версию, если хотите повторно показать приглашение.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h3 class="admin-section-title">Полноэкранное приглашение</h3>
+          <div class="form-group">
+            <label class="form-label">Заголовок</label>
+            <input class="form-input" name="alertTitle" maxlength="120" value="<%= onboardingConfig.alertTitle %>" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Текст</label>
+            <textarea class="form-textarea" rows="3" name="alertMessage" maxlength="600"><%= onboardingConfig.alertMessage %></textarea>
+          </div>
+          <div class="admin-form-grid">
+            <div class="form-group">
+              <label class="form-label">Кнопка «Старт»</label>
+              <input class="form-input" name="startButtonLabel" maxlength="60" value="<%= onboardingConfig.startButtonLabel %>" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Кнопка «Позже»</label>
+              <input class="form-input" name="laterButtonLabel" maxlength="60" value="<%= onboardingConfig.laterButtonLabel %>" />
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Текст напоминания в списке чатов</label>
+            <input class="form-input" name="listHintText" maxlength="200" value="<%= onboardingConfig.listHintText %>" />
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h3 class="admin-section-title">Карточка теста (которая отправляется пользователю)</h3>
+          <div class="form-group">
+            <label class="form-label">Заголовок карточки</label>
+            <input class="form-input" name="testCardTitle" maxlength="180" value="<%= testCard.title || '' %>" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Текст карточки</label>
+            <textarea class="form-textarea" rows="3" name="testCardMessage" maxlength="2000"><%= testCard.message || '' %></textarea>
+          </div>
+          <div class="admin-form-grid">
+            <div class="form-group">
+              <label class="form-label">Route</label>
+              <input class="form-input" name="testCardRoute" value="<%= testCard.route || '/personalization-test' %>" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Изображение (URL)</label>
+              <input class="form-input" name="testCardImageUrl" value="<%= testCard.imageUrl || '' %>" />
+            </div>
+          </div>
+          <div class="admin-form-grid">
+            <div class="form-group">
+              <label class="form-label">Кнопка «Открыть»</label>
+              <input class="form-input" name="testCardPrimaryLabel" maxlength="80" value="<%= testCard.primaryLabel || 'Пройти тест' %>" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Кнопка «Позже»</label>
+              <input class="form-input" name="testCardSecondaryLabel" maxlength="80" value="<%= testCard.secondaryLabel || 'Позже' %>" />
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h3 class="admin-section-title">Вопросы и варианты ответов</h3>
+          <p class="hint">Редактируйте формулировки и варианты. ID и типы вопросов фиксированы системой.</p>
+          <div id="questionEditorWrap" style="display:grid;gap:12px;">
+            <% questionItems.forEach((q, idx) => { %>
+              <div class="card" style="padding:12px;">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
+                  <strong>Вопрос <%= idx + 1 %></strong>
+                  <span class="badge badge-muted"><%= q.id %> / <%= q.type %></span>
+                </div>
+                <input type="hidden" class="js-q-id" value="<%= q.id %>" />
+                <input type="hidden" class="js-q-type" value="<%= q.type %>" />
+                <div class="form-group">
+                  <label>Текст вопроса</label>
+                  <input class="form-input js-q-title" maxlength="240" value="<%= q.title || '' %>" />
+                </div>
+                <div class="form-group">
+                  <label>Подсказка (опционально)</label>
+                  <input class="form-input js-q-hint" maxlength="240" value="<%= q.hint || '' %>" />
+                </div>
+                <% if (q.type === 'text') { %>
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Placeholder</label>
+                    <input class="form-input js-q-placeholder" maxlength="240" value="<%= q.placeholder || '' %>" />
+                  </div>
+                <% } else { %>
+                  <div class="admin-form-grid">
+                    <div class="form-group">
+                      <label>Варианты (каждый с новой строки)</label>
+                      <textarea class="form-textarea js-q-options" rows="4"><%= Array.isArray(q.options) ? q.options.join('\n') : '' %></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Максимум выборов (для multi)</label>
+                      <input class="form-input js-q-max" type="number" min="1" max="10" value="<%= q.maxSelections || 1 %>" />
+                    </div>
+                  </div>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+
+          <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+            <label>JSON вопросов (служебно)</label>
+            <textarea class="form-textarea" id="testQuestionsJson" name="testQuestionsJson" rows="8"><%= JSON.stringify(questionItems, null, 2) %></textarea>
+          </div>
+        </div>
+
+        <div class="admin-actions">
+          <button type="submit" class="btn btn-primary">Сохранить конфиг теста</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-split-stack">
+    <div class="card">
+      <h2 class="card-title">2) Индивидуальный тест по пользователю</h2>
+      <p class="hint">Выберите пользователя из списка и откройте отдельную карточку теста. Можно сразу открыть вариант с автогенерацией по памяти.</p>
+      <div style="display:grid; gap:10px;">
+        <input
+          list="onboardingUserList"
+          class="form-input"
+          id="individualTestUserPick"
+          placeholder="Поиск пользователя (id / username)"
+        />
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary" id="openIndividualTestBtn">Открыть карточку теста</button>
+          <button type="button" class="btn btn-primary" id="openIndividualMemoryTestBtn">Открыть с AI-генерацией</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">3) Отправка теста</h2>
+      <p class="hint">Отправка TEST-карточки всем пользователям или только по списку ID.</p>
+      <form method="post" action="/admin/onboarding-test/send" enctype="multipart/form-data">
+        <div class="form-group">
+          <label>Кому отправить</label>
+          <select class="form-select" name="audienceMode" id="audienceMode">
+            <option value="global">Всем пользователям</option>
+            <option value="users">Только по списку userId</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="targetUsersWrap" style="display:none;">
+          <label>Список userId</label>
+          <textarea class="form-textarea" name="targetUserIds" id="targetUserIds" rows="4" placeholder="id1,id2 или с новой строки"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <input list="onboardingUserList" class="form-input" id="userQuickPick" placeholder="Поиск пользователя (id / username)" />
+            <button type="button" class="btn btn-secondary" id="addUserToListBtn">Добавить</button>
+          </div>
+          <datalist id="onboardingUserList">
+            <% userOptions.forEach((u) => { %>
+              <option value="<%= u.id %>"><%= `${u.displayName} (@${u.username}) ${u.publicId ? `- ID: ${u.publicId}` : ''}` %></option>
+            <% }) %>
+          </datalist>
+        </div>
+
+        <div class="form-group">
+          <label>Заголовок карточки</label>
+          <input class="form-input" name="testCardTitle" maxlength="180" value="<%= testCard.title || '' %>" required />
+        </div>
+        <div class="form-group">
+          <label>Текст карточки</label>
+          <textarea class="form-textarea" name="testCardMessage" rows="3" maxlength="2000" required><%= testCard.message || '' %></textarea>
+        </div>
+        <div class="admin-form-grid">
+          <div class="form-group">
+            <label>Route</label>
+            <input class="form-input" name="testCardRoute" value="<%= testCard.route || '/personalization-test' %>" />
+          </div>
+          <div class="form-group">
+            <label>Изображение URL (опционально)</label>
+            <input class="form-input" name="testCardImageUrl" value="<%= testCard.imageUrl || '' %>" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Изображение с устройства (опционально, до 100MB)</label>
+          <input class="form-input" type="file" name="imageFile" accept="image/*,.heic,.heif,.avif,.webp,.jpg,.jpeg,.png,.gif,.bmp" />
+        </div>
+        <div class="admin-form-grid">
+          <div class="form-group">
+            <label>Кнопка «Открыть»</label>
+            <input class="form-input" name="testCardPrimaryLabel" maxlength="80" value="<%= testCard.primaryLabel || 'Пройти тест' %>" />
+          </div>
+          <div class="form-group">
+            <label>Кнопка «Позже»</label>
+            <input class="form-input" name="testCardSecondaryLabel" maxlength="80" value="<%= testCard.secondaryLabel || 'Позже' %>" />
+          </div>
+        </div>
+        <div class="admin-actions">
+          <button type="submit" class="btn btn-primary">Отправить тест</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card danger-card">
+      <h2 class="card-title">4) Принудительный перезапуск кампании</h2>
+      <p class="hint">Это увеличит версию кампании на +1 и снова покажет полноэкранный промпт тем, кто тест не завершил.</p>
+      <form method="post" action="/admin/onboarding-test/force" style="margin-top:10px;">
+        <button type="submit" class="btn btn-danger">Перезапустить кампанию</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const audienceMode = document.getElementById('audienceMode');
+    const targetUsersWrap = document.getElementById('targetUsersWrap');
+    const targetUserIds = document.getElementById('targetUserIds');
+    const userQuickPick = document.getElementById('userQuickPick');
+    const addUserBtn = document.getElementById('addUserToListBtn');
+    const individualTestUserPick = document.getElementById('individualTestUserPick');
+    const openIndividualTestBtn = document.getElementById('openIndividualTestBtn');
+    const openIndividualMemoryTestBtn = document.getElementById('openIndividualMemoryTestBtn');
+    const configForm = document.getElementById('onboardingConfigForm');
+    const hiddenJson = document.getElementById('testQuestionsJson');
+    const questionWrap = document.getElementById('questionEditorWrap');
+
+    function syncAudienceVisibility() {
+      if (!audienceMode || !targetUsersWrap) return;
+      targetUsersWrap.style.display = audienceMode.value === 'users' ? 'block' : 'none';
+    }
+
+    function addUserIdFromQuickPick() {
+      if (!targetUserIds || !userQuickPick) return;
+      const id = (userQuickPick.value || '').trim();
+      if (!id) return;
+      const current = (targetUserIds.value || '')
+        .split(/[\n,\s]+/g)
+        .map((v) => v.trim())
+        .filter(Boolean);
+      if (!current.includes(id)) current.push(id);
+      targetUserIds.value = current.join('\n');
+      userQuickPick.value = '';
+      userQuickPick.focus();
+    }
+
+    function openIndividualTest(mode) {
+      if (!individualTestUserPick) return;
+      const userId = (individualTestUserPick.value || '').trim();
+      if (!userId) {
+        alert('Сначала выберите пользователя из списка.');
+        return;
+      }
+      const encoded = encodeURIComponent(userId);
+      const suffix = mode ? `?prefill=${encodeURIComponent(mode)}` : '';
+      window.location.href = `/admin/users/${encoded}/onboarding-test${suffix}`;
+    }
+
+    function buildQuestionsJson() {
+      if (!questionWrap || !hiddenJson) return true;
+      const cards = Array.from(questionWrap.querySelectorAll('.card'));
+      const next = [];
+
+      for (const card of cards) {
+        const id = (card.querySelector('.js-q-id')?.value || '').trim();
+        const type = (card.querySelector('.js-q-type')?.value || '').trim();
+        const title = (card.querySelector('.js-q-title')?.value || '').trim();
+        const hint = (card.querySelector('.js-q-hint')?.value || '').trim();
+        const placeholder = (card.querySelector('.js-q-placeholder')?.value || '').trim();
+        const optionsRaw = (card.querySelector('.js-q-options')?.value || '').trim();
+        const max = Number(card.querySelector('.js-q-max')?.value || 1);
+
+        if (!id || !type || !title) {
+          alert('Проверьте вопросы: id/type/title обязательны.');
+          return false;
+        }
+
+        const row = { id, type, title, hint, placeholder, maxSelections: Number.isFinite(max) ? max : 1 };
+        if (type !== 'text') {
+          row.options = optionsRaw
+            .split(/\n+/g)
+            .map((v) => v.trim())
+            .filter(Boolean);
+          if (!row.options.length) {
+            alert(`У вопроса ${id} должны быть варианты ответа.`);
+            return false;
+          }
+        } else {
+          row.options = [];
+        }
+        next.push(row);
+      }
+
+      hiddenJson.value = JSON.stringify(next, null, 2);
+      return true;
+    }
+
+    if (audienceMode) {
+      audienceMode.addEventListener('change', syncAudienceVisibility);
+      syncAudienceVisibility();
+    }
+
+    if (addUserBtn) {
+      addUserBtn.addEventListener('click', addUserIdFromQuickPick);
+    }
+    if (userQuickPick) {
+      userQuickPick.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          addUserIdFromQuickPick();
+        }
+      });
+    }
+
+    if (configForm) {
+      configForm.addEventListener('submit', function (event) {
+        if (!buildQuestionsJson()) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    if (openIndividualTestBtn) {
+      openIndividualTestBtn.addEventListener('click', function () {
+        openIndividualTest('');
+      });
+    }
+    if (openIndividualMemoryTestBtn) {
+      openIndividualMemoryTestBtn.addEventListener('click', function () {
+        openIndividualTest('ai');
+      });
+    }
+  })();
+</script>
+
+<%- include('partials/footer') %>

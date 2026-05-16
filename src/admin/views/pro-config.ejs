@@ -1,0 +1,393 @@
+﻿<%- include('partials/header', { title: 'PRO конфиг' }) %>
+
+<%
+  const section = `${proSection || 'general'}`;
+  const navItems = Array.isArray(proSectionsNav) ? proSectionsNav : [];
+  const limits = (proConfig && proConfig.limits && typeof proConfig.limits === 'object') ? proConfig.limits : {};
+  const apiSourceLabel =
+    apiKeySource === 'database'
+      ? 'База данных'
+      : apiKeySource === 'env'
+      ? 'ENV'
+      : 'Не задан';
+  const maxFileAnalyzeMb = Math.max(1, Math.round((Number(limits.maxFileAnalyzeBytes) || 8 * 1024 * 1024) / (1024 * 1024)));
+  const maxVoiceAudioMb = Math.max(1, Math.round((Number(limits.maxVoiceAudioBase64Chars) || 20 * 1024 * 1024) / (1024 * 1024)));
+  const maxImageAnalysesPerDay = Math.max(1, Number(limits.maxImageAnalysesPerDay) || 40);
+  const maxImageGenerationsPerDay = Math.max(1, Number(limits.maxImageGenerationsPerDay) || 5);
+  const maxImageEditsPerDay = Math.max(1, Number(limits.maxImageEditsPerDay) || 20);
+  const maxVideoGenerationsPerDay = Math.max(1, Number(limits.maxVideoGenerationsPerDay) || 5);
+  const maxVoiceMessagesPerDay = Math.max(1, Number(limits.maxVoiceMessagesPerDay) || 80);
+  const maxVoiceRealtimeSessionsPerDay = Math.max(1, Number(limits.maxVoiceRealtimeSessionsPerDay) || 60);
+  const maxFileAnalysesPerDay = Math.max(1, Number(limits.maxFileAnalysesPerDay) || 30);
+%>
+
+<div class="admin-page-head">
+  <h1 class="admin-page-title">PRO конфиг</h1>
+  <p class="admin-page-subtitle">
+    Настройки разделены на отдельные экраны: доступ, провайдер, модели, функции и лимиты, allowlist и системный промпт.
+  </p>
+</div>
+
+<div class="admin-pill-nav">
+  <% navItems.forEach((item) => { %>
+    <a href="<%= item.href %>" class="admin-pill-link <%= item.active ? 'active' : '' %>"><%= item.label %></a>
+  <% }) %>
+</div>
+
+<div class="admin-kpi-grid">
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Статус PRO</div>
+    <div class="admin-kpi-value"><%= proConfig.enabled ? 'Включен' : 'Выключен' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Режим доступа</div>
+    <div class="admin-kpi-value"><%= proConfig.accessMode === 'all' ? 'Для всех' : 'По allowlist' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Источник ключей</div>
+    <div class="admin-kpi-value"><%= apiSourceLabel %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Активных API-ключей</div>
+    <div class="admin-kpi-value"><%= proApiKeysCount %></div>
+  </div>
+</div>
+
+<form method="post" action="/admin/pro-config/<%= section %>">
+  <% if (section === 'general') { %>
+    <div class="card">
+      <h2 class="card-title">Общие параметры</h2>
+      <p class="hint">Базовое включение PRO и правила выдачи доступа пользователям.</p>
+
+      <div class="pro-grid-2">
+        <label class="checkbox-row">
+          <input class="form-input" type="checkbox" name="enabled" value="true" <%= proConfig.enabled ? 'checked' : '' %> />
+          Включить PRO backend
+        </label>
+        <label class="checkbox-row">
+          <input class="form-input" type="checkbox" name="allowAdmins" value="true" <%= proConfig.allowAdmins ? 'checked' : '' %> />
+          Админы всегда имеют доступ к PRO
+        </label>
+      </div>
+
+      <label>Режим доступа</label>
+      <select class="form-select" name="accessMode">
+        <option value="allowlist" <%= proConfig.accessMode === 'allowlist' ? 'selected' : '' %>>По списку пользователей (allowlist)</option>
+        <option value="all" <%= proConfig.accessMode === 'all' ? 'selected' : '' %>>Для всех пользователей</option>
+      </select>
+
+      <div class="admin-actions" style="margin-top: 14px;">
+        <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (section === 'provider') { %>
+    <div class="admin-split-layout">
+      <div class="admin-split-stack">
+        <div class="card">
+          <h2 class="card-title">Провайдер</h2>
+          <div class="pro-grid-2">
+            <div>
+              <label>Провайдер</label>
+              <input class="form-input" name="provider" value="<%= proConfig.provider %>" />
+            </div>
+            <div>
+              <label>Base URL</label>
+              <input class="form-input" name="baseUrl" value="<%= proConfig.baseUrl %>" placeholder="https://dashscope-intl.aliyuncs.com/compatible-mode/v1" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">API ключи</h2>
+          <div class="pro-grid-2">
+            <div>
+              <label>Новый одиночный ключ (legacy)</label>
+              <input class="form-input" name="proApiKey" value="" autocomplete="off" placeholder="sk-..." />
+              <label class="checkbox-row" style="margin-top: 8px;">
+                <input class="form-input" type="checkbox" name="clearProApiKey" value="true" />
+                Очистить одиночный ключ в БД
+              </label>
+            </div>
+            <div>
+              <label>Список ключей (по одному в строке или через запятую)</label>
+              <textarea class="form-textarea" rows="6" name="proApiKeys"><%= apiKeysText %></textarea>
+              <label class="checkbox-row" style="margin-top: 8px;">
+                <input class="form-input" type="checkbox" name="clearProApiKeys" value="true" />
+                Очистить список ключей в БД
+              </label>
+            </div>
+          </div>
+
+          <div class="admin-note">
+            Ключи используются с fallback: если один ключ упирается в лимит, запрос переключается на следующий.
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-split-stack">
+        <div class="card">
+          <h2 class="card-title">Диагностика ключей</h2>
+          <div class="status-row">
+            <div class="status-label">Источник:</div>
+            <div class="status-value"><%= apiSourceLabel %></div>
+          </div>
+          <div class="status-row">
+            <div class="status-label">Количество:</div>
+            <div class="status-value"><%= proApiKeysCount %></div>
+          </div>
+          <div class="status-row">
+            <div class="status-label">Legacy ключ:</div>
+            <div class="status-value"><%= proApiKeyMasked || '—' %></div>
+          </div>
+          <% if (proApiKeysMasked && proApiKeysMasked.length) { %>
+            <div class="pro-badges" style="margin-top: 10px;">
+              <% proApiKeysMasked.forEach((item) => { %>
+                <span class="badge badge-muted"><%= item %></span>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-actions" style="margin-top: 14px;">
+      <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+    </div>
+  <% } %>
+
+  <% if (section === 'models') { %>
+    <div class="card">
+      <h2 class="card-title">Модельные пулы</h2>
+      <p class="hint">По одной модели в строке. Порядок влияет на fallback.</p>
+
+      <div class="pro-grid-2">
+        <div>
+          <label>Текстовые модели</label>
+          <textarea class="form-textarea" rows="4" name="textModels"><%= textModelsText %></textarea>
+        </div>
+        <div>
+          <label>Vision модели (анализ фото)</label>
+          <textarea class="form-textarea" rows="4" name="visionModels"><%= visionModelsText %></textarea>
+        </div>
+        <div>
+          <label>Image generation модели</label>
+          <textarea class="form-textarea" rows="4" name="imageGenModels"><%= imageGenModelsText %></textarea>
+        </div>
+        <div>
+          <label>Image edit модели</label>
+          <textarea class="form-textarea" rows="4" name="imageEditModels"><%= imageEditModelsText %></textarea>
+        </div>
+        <div>
+          <label>Video generation модели</label>
+          <textarea class="form-textarea" rows="4" name="videoGenModels"><%= videoGenModelsText %></textarea>
+        </div>
+        <div>
+          <label>Voice ASR (голос → текст)</label>
+          <textarea class="form-textarea" rows="4" name="voiceAsrModels"><%= voiceAsrModelsText %></textarea>
+        </div>
+        <div>
+          <label>Voice TTS (текст → голос)</label>
+          <textarea class="form-textarea" rows="4" name="voiceTtsModels"><%= voiceTtsModelsText %></textarea>
+        </div>
+        <div>
+          <label>Voice realtime модели</label>
+          <textarea class="form-textarea" rows="4" name="voiceRealtimeModels"><%= voiceRealtimeModelsText %></textarea>
+        </div>
+      </div>
+
+      <div class="admin-actions">
+        <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (section === 'features') { %>
+    <div class="admin-split-layout">
+      <div class="admin-split-stack">
+        <div class="card">
+          <h2 class="card-title">Функции PRO</h2>
+          <div class="pro-grid-2">
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="imageAnalysisEnabled" value="true" <%= proConfig.imageAnalysisEnabled ? 'checked' : '' %> />
+              Анализ изображений
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="imageGenerationEnabled" value="true" <%= proConfig.imageGenerationEnabled ? 'checked' : '' %> />
+              Генерация изображений
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="imageEditingEnabled" value="true" <%= proConfig.imageEditingEnabled ? 'checked' : '' %> />
+              Редактирование изображений
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="videoGenerationEnabled" value="true" <%= proConfig.videoGenerationEnabled ? 'checked' : '' %> />
+              Генерация видео
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="voiceMessagesEnabled" value="true" <%= proConfig.voiceMessagesEnabled ? 'checked' : '' %> />
+              Голосовые сообщения
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="voiceRealtimeEnabled" value="true" <%= proConfig.voiceRealtimeEnabled ? 'checked' : '' %> />
+              Realtime голос
+            </label>
+            <label class="checkbox-row">
+              <input class="form-input" type="checkbox" name="fileAnalysisEnabled" value="true" <%= proConfig.fileAnalysisEnabled ? 'checked' : '' %> />
+              Анализ вложений
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Параметры ответа</h2>
+          <div class="pro-grid-2">
+            <div>
+              <label>Максимум токенов</label>
+              <input class="form-input" type="number" min="128" max="8192" step="1" name="maxOutputTokens" value="<%= limits.maxOutputTokens || proConfig.maxOutputTokens %>" />
+            </div>
+            <div>
+              <label>Temperature</label>
+              <input class="form-input" type="number" min="0" max="2" step="0.1" name="temperature" value="<%= proConfig.temperature %>" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-split-stack">
+        <div class="card">
+          <h2 class="card-title">Лимиты</h2>
+          <div class="form-group">
+            <label>Макс. размер вложения для анализа (MB)</label>
+            <input class="form-input" type="number" min="1" max="20" step="1" name="maxFileAnalyzeMb" value="<%= maxFileAnalyzeMb %>" />
+          </div>
+          <div class="form-group">
+            <label>Макс. длина image prompt (символы)</label>
+            <input class="form-input" type="number" min="200" max="12000" step="1" name="maxImagePromptChars" value="<%= limits.maxImagePromptChars %>" />
+          </div>
+          <div class="form-group">
+            <label>Макс. длина video prompt (символы)</label>
+            <input class="form-input" type="number" min="200" max="12000" step="1" name="maxVideoPromptChars" value="<%= limits.maxVideoPromptChars %>" />
+          </div>
+          <div class="form-group">
+            <label>Макс. размер voice payload (MB)</label>
+            <input class="form-input" type="number" min="1" max="20" step="1" name="maxVoiceAudioMb" value="<%= maxVoiceAudioMb %>" />
+          </div>
+          <div class="form-group">
+            <label>Макс. длительность видео (сек)</label>
+            <input class="form-input" type="number" min="1" max="180" step="1" name="maxVideoDurationSeconds" value="<%= limits.maxVideoDurationSeconds %>" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Макс. сообщений в одном запросе</label>
+            <input class="form-input" type="number" min="1" max="120" step="1" name="maxMessagesPerRequest" value="<%= limits.maxMessagesPerRequest %>" />
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Дневные лимиты</h2>
+          <div class="form-group">
+            <label>Анализ изображений / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxImageAnalysesPerDay" value="<%= maxImageAnalysesPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>Генерация изображений / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxImageGenerationsPerDay" value="<%= maxImageGenerationsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>Редактирование изображений / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxImageEditsPerDay" value="<%= maxImageEditsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>Генерация видео / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxVideoGenerationsPerDay" value="<%= maxVideoGenerationsPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>Голосовые сообщения / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxVoiceMessagesPerDay" value="<%= maxVoiceMessagesPerDay %>" />
+          </div>
+          <div class="form-group">
+            <label>Realtime голос / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxVoiceRealtimeSessionsPerDay" value="<%= maxVoiceRealtimeSessionsPerDay %>" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Анализ файлов / день</label>
+            <input class="form-input" type="number" min="1" max="5000" step="1" name="maxFileAnalysesPerDay" value="<%= maxFileAnalysesPerDay %>" />
+          </div>
+        </div>
+      </div>
+
+    <div class="admin-actions" style="margin-top: 14px;">
+      <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+    </div>
+  <% } %>
+
+  <% if (section === 'allowlist') { %>
+    <div class="card">
+      <h2 class="card-title">Allowlist пользователей</h2>
+      <p class="hint">Работает только если в общих настройках выбран режим доступа allowlist.</p>
+
+      <label>ID пользователей (по одному в строке)</label>
+      <textarea class="form-textarea" rows="8" name="allowedUserIds"><%= allowedUserIdsText %></textarea>
+
+      <div class="admin-actions" style="margin-top: 14px;">
+        <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Пользователи в allowlist</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Пользователь</th>
+              <th>Роль</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!allowedUsers || !allowedUsers.length) { %>
+              <tr>
+                <td colspan="3" style="text-align:center; color:var(--text-faint);">Список пока пуст</td>
+              </tr>
+            <% } %>
+            <% (allowedUsers || []).forEach((item) => { %>
+              <tr>
+                <td>
+                  <a href="/admin/users/<%= item.id %>" class="table-link"><%= item.username %></a>
+                  <div style="font-size:12px; color:var(--text-faint);"><%= item.displayName %></div>
+                </td>
+                <td><%= item.role %></td>
+                <td>
+                  <% if (item.isDeleted) { %>
+                    <span class="badge badge-warning">Удален</span>
+                  <% } else if (item.isBlocked) { %>
+                    <span class="badge badge-danger">Заблокирован</span>
+                  <% } else { %>
+                    <span class="badge badge-success">Активен</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (section === 'prompt') { %>
+    <div class="card">
+      <h2 class="card-title">Системный промпт PRO</h2>
+      <p class="hint">Этот контекст добавляется ко всем PRO-диалогам.</p>
+      <textarea class="form-textarea" rows="16" name="systemPrompt"><%= proConfig.systemPrompt %></textarea>
+
+      <div class="admin-actions" style="margin-top: 14px;">
+        <button type="submit" class="btn btn-primary">Сохранить раздел</button>
+      </div>
+    </div>
+  <% } %>
+</form>
+
+<%- include('partials/footer') %>
+

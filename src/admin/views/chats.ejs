@@ -1,0 +1,69 @@
+<%- include('partials/header', { title: 'Чаты пользователя' }) %>
+
+<a href="/admin/users/<%= user.id %>" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  К профилю пользователя
+</a>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 class="card-title" style="margin:0;">Все чаты: <%= user.username %></h2>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Название чата</th>
+          <th>Статус</th>
+          <th>Создан</th>
+          <th>Последняя активность</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (chats.length === 0) { %>
+          <tr><td colspan="5" style="text-align:center; padding: 24px; color:var(--text-faint)">У пользователя пока нет чатов.</td></tr>
+        <% } else { %>
+          <% chats.forEach((c) => { %>
+            <tr>
+              <td>
+                <a href="/admin/chats/<%= c.id %>/messages" class="table-link" style="display:flex; align-items:center; gap:8px; font-weight:600;">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                  <%= c.title || 'Новый чат' %>
+                </a>
+              </td>
+              <td>
+                <% if (c.isDeleted) { %>
+                  <span class="badge badge-warning">Удалён</span>
+                  <div style="font-size:12px; color:var(--text-faint); margin-top:4px;">
+                    <%= c.deletedAt ? c.deletedAt.toISOString().slice(0,16).replace('T', ' ') : '—' %>
+                  </div>
+                <% } else { %>
+                  <span class="badge badge-success">Активен</span>
+                <% } %>
+              </td>
+              <td style="color:var(--text-faint); font-size:12px"><%= c.createdAt.toISOString().slice(0,16).replace('T', ' ') %></td>
+              <td style="color:var(--text-faint); font-size:12px"><%= c.updatedAt.toISOString().slice(0,16).replace('T', ' ') %></td>
+              <td>
+                <% if (c.isDeleted) { %>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <form method="post" action="/admin/users/<%= user.id %>/chats/<%= c.id %>/restore" style="margin:0;">
+                      <button type="submit" class="btn btn-sm btn-secondary">Восстановить</button>
+                    </form>
+                    <form method="post" action="/admin/users/<%= user.id %>/chats/<%= c.id %>/purge" style="margin:0;">
+                      <button type="submit" class="btn btn-sm btn-danger" data-confirm="Удалить чат навсегда?">Удалить навсегда</button>
+                    </form>
+                  </div>
+                <% } else { %>
+                  <span style="color:var(--text-faint); font-size:12px;">—</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

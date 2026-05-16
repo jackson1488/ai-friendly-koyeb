@@ -1,0 +1,222 @@
+<%- include('partials/header', { title: 'Пулы моделей' }) %>
+
+<div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+  <p class="meta" style="margin:0;">
+    Всего: <b><span id="stat-total"><%= total %></span></b>
+    |
+    Рабочих: <b><span id="stat-working"><%= working %></span></b>
+    |
+    Видимых: <b><span id="stat-visible"><%= total %></span></b>
+  </p>
+
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <select id="filter-category" class="btn btn-secondary" style="min-width:180px;">
+      <% categories.forEach((item) => { %>
+        <option value="<%= item.key %>"><%= item.label %></option>
+      <% }) %>
+    </select>
+
+    <select id="filter-group" class="btn btn-secondary" style="min-width:160px;">
+      <option value="all">Все типы</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="text">Text</option>
+      <option value="vision">Vision</option>
+      <option value="image">Image</option>
+      <option value="video">Video</option>
+      <option value="voice">Voice</option>
+      <option value="realtime">Realtime</option>
+    </select>
+
+    <button id="btn-test-all" class="btn btn-secondary">⚡ Тест видимых (1 раз / 10 сек)</button>
+    <form method="post" action="/admin/models/refresh" style="margin:0;">
+      <button type="submit" class="btn btn-primary">🔄 Обновить parser-модели</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Модель (ModelID)</th>
+          <th>Категория</th>
+          <th>Тип</th>
+          <th>Статус</th>
+          <th>Пинг (ms)</th>
+          <th>Последний тест</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% models.forEach((model) => { %>
+          <tr
+            class="model-row"
+            data-row-id="<%= model.rowId %>"
+            data-model-id="<%= model.modelId %>"
+            data-category="<%= model.category %>"
+            data-group="<%= model.typeGroup %>"
+          >
+            <td style="font-family:monospace; font-size:12px;"><%= model.modelId %></td>
+            <td><%= model.categoryLabel %></td>
+            <td><code><%= model.typeGroup %></code></td>
+            <td class="status-cell">
+              <% if (model.isWorking === true) { %>
+                <span class="badge badge-success">✅ Работает</span>
+              <% } else if (model.isWorking === false) { %>
+                <span class="badge badge-danger">❌ Ошибка</span>
+              <% } else { %>
+                <span class="badge" style="background:#1f2434; color:#c8d1eb;">— Не тестировалась</span>
+              <% } %>
+            </td>
+            <td class="ping-cell"><%= Number.isFinite(model.responseMs) ? model.responseMs + ' ms' : '-' %></td>
+            <td class="time-cell" style="color:var(--text-faint); font-size:12px;">
+              <%= model.lastTested ? model.lastTested.toISOString().slice(0,19).replace('T', ' ') : '-' %>
+            </td>
+            <td>
+              <button class="btn btn-secondary btn-sm btn-test-single">Тест</button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const rows = Array.from(document.querySelectorAll('.model-row'));
+  const filterCategory = document.getElementById('filter-category');
+  const filterGroup = document.getElementById('filter-group');
+  const btnTestAll = document.getElementById('btn-test-all');
+
+  function rowIsVisible(row) {
+    return row.style.display !== 'none';
+  }
+
+  function getVisibleRows() {
+    return rows.filter(rowIsVisible);
+  }
+
+  function updateStats() {
+    const visibleRows = getVisibleRows();
+    let working = 0;
+    rows.forEach((row) => {
+      const statusCell = row.querySelector('.status-cell');
+      if (statusCell && statusCell.innerText.includes('Работает')) {
+        working += 1;
+      }
+    });
+
+    document.getElementById('stat-total').innerText = rows.length;
+    document.getElementById('stat-working').innerText = working;
+    document.getElementById('stat-visible').innerText = visibleRows.length;
+  }
+
+  function applyFilters() {
+    const selectedCategory = filterCategory.value;
+    const selectedGroup = filterGroup.value;
+
+    rows.forEach((row) => {
+      const category = row.getAttribute('data-category');
+      const group = row.getAttribute('data-group');
+      const passCategory = selectedCategory === 'all' || category === selectedCategory;
+      const passGroup = selectedGroup === 'all' || group === selectedGroup;
+      row.style.display = passCategory && passGroup ? '' : 'none';
+    });
+
+    updateStats();
+  }
+
+  function updateRow(row, success, ms) {
+    const statusCell = row.querySelector('.status-cell');
+    const pingCell = row.querySelector('.ping-cell');
+    const timeCell = row.querySelector('.time-cell');
+
+    if (success) {
+      statusCell.innerHTML = '<span class="badge badge-success">✅ Работает</span>';
+      pingCell.innerText = Number.isFinite(ms) ? (ms + ' ms') : '-';
+    } else {
+      statusCell.innerHTML = '<span class="badge badge-danger">❌ Ошибка</span>';
+      pingCell.innerText = '-';
+    }
+
+    const now = new Date();
+    timeCell.innerText = now.toISOString().slice(0, 19).replace('T', ' ');
+    updateStats();
+  }
+
+  async function testModel(row) {
+    const modelId = row.getAttribute('data-model-id');
+    const category = row.getAttribute('data-category');
+    const btn = row.querySelector('.btn-test-single');
+    const originalText = btn.innerText;
+    btn.innerText = 'Тест...';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/admin/models/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId, category })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data?.error || 'HTTP ' + resp.status);
+      }
+
+      updateRow(row, Boolean(data.success), data.ms);
+      if (data.success) {
+        showToast(`Успех: ${modelId} (${data.ms || '-'} ms)`, 'success');
+      } else {
+        showToast(`Ошибка: ${modelId}${data.error ? ' — ' + data.error : ''}`, 'error');
+      }
+    } catch (error) {
+      updateRow(row, false, null);
+      showToast(`Сбой теста: ${modelId} — ${error.message}`, 'error');
+    } finally {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+  }
+
+  document.querySelectorAll('.btn-test-single').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.model-row');
+      testModel(row);
+    });
+  });
+
+  filterCategory.addEventListener('change', applyFilters);
+  filterGroup.addEventListener('change', applyFilters);
+
+  btnTestAll.addEventListener('click', async () => {
+    if (btnTestAll.disabled) return;
+    btnTestAll.disabled = true;
+
+    const targetRows = getVisibleRows();
+    if (!targetRows.length) {
+      showToast('Нет видимых моделей для теста', 'error');
+      btnTestAll.disabled = false;
+      return;
+    }
+
+    showToast(`Запускаю тест ${targetRows.length} моделей (1 запрос / 10 секунд)`, 'success');
+    for (let i = 0; i < targetRows.length; i += 1) {
+      btnTestAll.innerText = `Тест ${i + 1}/${targetRows.length}...`;
+      await testModel(targetRows[i]);
+
+      if (i < targetRows.length - 1) {
+        btnTestAll.innerText = 'Ожидание 10с...';
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+    }
+
+    btnTestAll.innerText = '⚡ Тест видимых (1 раз / 10 сек)';
+    btnTestAll.disabled = false;
+    showToast('Массовое тестирование завершено', 'success');
+  });
+
+  applyFilters();
+</script>
+
+<%- include('partials/footer') %>

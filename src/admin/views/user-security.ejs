@@ -1,0 +1,296 @@
+<%- include('partials/header', { title: 'Безопасность — ' + user.username }) %>
+
+<%
+  function dt(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString('ru-RU');
+  }
+  function shortId(value) {
+    const text = `${value || ''}`;
+    if (text.length <= 10) return text;
+    return `${text.slice(0, 6)}…${text.slice(-4)}`;
+  }
+  function levelLabel(value) {
+    const level = `${value || ''}`.toUpperCase();
+    if (!level) return '—';
+    if (level === 'PERMANENT') return 'PERMANENT';
+    if (level === 'HARD') return 'HARD';
+    if (level === 'SOFT') return 'SOFT';
+    if (level === 'WARNING') return 'WARNING';
+    return level;
+  }
+  function banExpiry(ban) {
+    if (!ban) return '—';
+    if (`${ban.level || ''}`.toUpperCase() === 'PERMANENT') return 'Постоянно';
+    return dt(ban.expiresAt);
+  }
+  const redirectTo = `/admin/users/${user.id}/security`;
+%>
+
+<a href="/admin/users/<%= user.id %>" class="back-link">
+  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+  К карточке пользователя
+</a>
+
+<div class="admin-page-head">
+  <h1 class="admin-page-title">Безопасность: <%= user.displayName %></h1>
+  <p class="admin-page-subtitle">Сессии, авторизация и критичные действия по аккаунту в одном разделе.</p>
+</div>
+
+<div class="admin-pill-nav">
+  <a href="/admin/users/<%= user.id %>" class="admin-pill-link">Обзор</a>
+  <a href="/admin/users/<%= user.id %>/security" class="admin-pill-link active">Безопасность</a>
+  <a href="/admin/users/<%= user.id %>/pro" class="admin-pill-link">PRO</a>
+</div>
+
+<div class="admin-kpi-grid">
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Статус аккаунта</div>
+    <div class="admin-kpi-value"><%= user.isDeleted ? 'Удален' : 'Активен' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Глобальный бан</div>
+    <div class="admin-kpi-value"><%= activeGlobalBan || user.isBlocked ? 'Есть' : 'Нет' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Anon-бан</div>
+    <div class="admin-kpi-value"><%= activeAnonBan ? 'Есть' : 'Нет' %></div>
+  </div>
+  <div class="admin-kpi-card">
+    <div class="admin-kpi-label">Активных сессий</div>
+    <div class="admin-kpi-value"><%= sessions.length %></div>
+  </div>
+</div>
+
+<div class="admin-security-grid">
+  <div class="card">
+    <h2 class="card-title">Сброс пароля</h2>
+    <p class="hint">После сброса все текущие сессии пользователя автоматически завершатся.</p>
+    <form method="post" action="/admin/users/<%= user.id %>/password">
+      <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+      <div class="form-group">
+        <label>Новый пароль</label>
+        <input class="form-input" type="text" name="newPassword" minlength="8" placeholder="Минимум 8 символов" required />
+      </div>
+      <button type="submit" class="btn btn-secondary" data-confirm="Сбросить пароль пользователю и завершить его сессии?">Сбросить пароль</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Сессии</h2>
+    <p class="hint">Мгновенный выход пользователя со всех устройств.</p>
+    <form method="post" action="/admin/users/<%= user.id %>/sessions/kick-all">
+      <button type="submit" class="btn btn-danger" data-confirm="Завершить ВСЕ сессии пользователя?">Сбросить все сессии</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Anon-бан</h2>
+    <div class="status-row">
+      <div class="status-label">Статус:</div>
+      <div class="status-value"><%= activeAnonBan ? 'Активен' : 'Нет' %></div>
+    </div>
+    <div class="status-row">
+      <div class="status-label">Уровень:</div>
+      <div class="status-value"><%= levelLabel(activeAnonBan?.level) %></div>
+    </div>
+    <div class="status-row">
+      <div class="status-label">Истекает:</div>
+      <div class="status-value"><%= banExpiry(activeAnonBan) %></div>
+    </div>
+    <form method="post" action="/admin/users/<%= user.id %>/anon-ban" style="margin-top: 12px;">
+      <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+      <div class="form-group">
+        <select class="form-select" name="level">
+          <option value="SOFT" <%= activeAnonBan?.level === 'SOFT' ? 'selected' : '' %>>SOFT</option>
+          <option value="HARD" <%= activeAnonBan?.level === 'HARD' ? 'selected' : '' %>>HARD</option>
+          <option value="PERMANENT" <%= activeAnonBan?.level === 'PERMANENT' ? 'selected' : '' %>>PERMANENT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <input class="form-input" type="number" name="durationMinutes" min="1" max="259200" placeholder="Длительность в минутах" />
+      </div>
+      <div class="form-group">
+        <input class="form-input" type="text" name="reason" maxlength="240" value="<%= activeAnonBan?.reason || 'Нарушение правил' %>" placeholder="Причина" required />
+      </div>
+      <button type="submit" class="btn btn-secondary" data-confirm="Применить anon-бан?">Применить anon-бан</button>
+    </form>
+    <% if (activeAnonBan) { %>
+      <form method="post" action="/admin/users/<%= user.id %>/anon-unban" style="margin-top: 8px;">
+        <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+        <button type="submit" class="btn btn-primary" data-confirm="Снять anon-бан?">Снять anon-бан</button>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Глобальный бан</h2>
+    <div class="status-row">
+      <div class="status-label">Статус:</div>
+      <div class="status-value"><%= activeGlobalBan || user.isBlocked ? 'Активен' : 'Нет' %></div>
+    </div>
+    <div class="status-row">
+      <div class="status-label">Уровень:</div>
+      <div class="status-value"><%= levelLabel(activeGlobalBan?.level) %></div>
+    </div>
+    <div class="status-row">
+      <div class="status-label">Истекает:</div>
+      <div class="status-value"><%= banExpiry(activeGlobalBan) %></div>
+    </div>
+    <form method="post" action="/admin/users/<%= user.id %>/global-block" style="margin-top: 12px;">
+      <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+      <div class="form-group">
+        <select class="form-select" name="level">
+          <option value="SOFT" <%= activeGlobalBan?.level === 'SOFT' ? 'selected' : '' %>>SOFT</option>
+          <option value="HARD" <%= activeGlobalBan?.level === 'HARD' ? 'selected' : '' %>>HARD</option>
+          <option value="PERMANENT" <%= activeGlobalBan?.level === 'PERMANENT' ? 'selected' : '' %>>PERMANENT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <input class="form-input" type="number" name="durationMinutes" min="1" max="259200" placeholder="Длительность в минутах" />
+      </div>
+      <div class="form-group">
+        <input class="form-input" type="text" name="reason" maxlength="240" value="<%= activeGlobalBan?.reason || 'Нарушение правил' %>" placeholder="Причина" required />
+      </div>
+      <button type="submit" class="btn btn-danger" data-confirm="Применить глобальный бан и завершить сессии пользователя?">Применить глобальный бан</button>
+    </form>
+    <% if (activeGlobalBan || user.isBlocked) { %>
+      <form method="post" action="/admin/users/<%= user.id %>/global-unblock" style="margin-top: 8px;">
+        <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+        <button type="submit" class="btn btn-primary" data-confirm="Снять глобальный бан?">Снять глобальный бан</button>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="card danger-card">
+    <h2 class="card-title" style="color: var(--danger);">Опасная зона</h2>
+    <p class="hint">Мягкое удаление сразу отключает аккаунт, хранит данные ещё <%= deletionRetentionDays || 20 %> дней, а затем удаляет их окончательно. При необходимости можно выполнить и моментальное удаление.</p>
+    <% if (user.isDeleted) { %>
+      <div class="status-row">
+        <div class="status-label">Удалён:</div>
+        <div class="status-value"><%= dt(user.deletedAt) %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Будет удалён окончательно:</div>
+        <div class="status-value"><%= user.deletionMeta?.purgeAt ? dt(user.deletionMeta.purgeAt) : '?' %></div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">Осталось дней:</div>
+        <div class="status-value"><%= Number.isFinite(user.deletionMeta?.daysLeft) ? user.deletionMeta.daysLeft : '?' %></div>
+      </div>
+      <form method="post" action="/admin/users/<%= user.id %>/restore">
+        <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+        <button type="submit" class="btn btn-primary" data-confirm="Восстановить этот аккаунт сейчас?">Восстановить аккаунт</button>
+      </form>
+      <form method="post" action="/admin/users/<%= user.id %>/delete/permanent" style="margin-top: 10px;">
+        <input type="hidden" name="redirectTo" value="/admin/users" />
+        <div class="form-group">
+          <label>Введите `username` для подтверждения полного удаления: <code><%= user.username %></code></label>
+          <input class="form-input" type="text" name="confirmUsername" placeholder="Введите username точно как указан" required />
+        </div>
+        <button type="submit" class="btn btn-danger" data-confirm="Удалить аккаунт и все связанные данные навсегда? Это действие нельзя отменить.">
+          Удалить навсегда
+        </button>
+      </form>
+    <% } else { %>
+      <form method="post" action="/admin/users/<%= user.id %>/delete">
+        <input type="hidden" name="redirectTo" value="<%= redirectTo %>" />
+        <button type="submit" class="btn btn-danger" data-confirm="Мягко удалить этот аккаунт сейчас?">Мягко удалить аккаунт</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <h2 class="card-title" style="margin:0;">Активные сессии</h2>
+    <span class="badge badge-accent"><%= sessions.length %> шт.</span>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Session ID</th>
+          <th>Устройство</th>
+          <th>Платформа / App</th>
+          <th>IP</th>
+          <th>Создана</th>
+          <th>Последняя активность</th>
+          <th>Истекает</th>
+          <th>Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!sessions.length) { %>
+          <tr><td colspan="8" style="text-align:center; color:var(--text-faint); padding: 18px;">Нет активных сессий</td></tr>
+        <% } %>
+        <% sessions.forEach((session) => { %>
+          <tr>
+            <td><span class="mono" title="<%= session.id %>"><%= shortId(session.id) %></span></td>
+            <td><%= session.device || '—' %></td>
+            <td><%= session.platform || '—' %> / <%= session.appName || '—' %></td>
+            <td class="mono"><%= session.ipAddress || '—' %></td>
+            <td><%= dt(session.createdAt) %></td>
+            <td><%= dt(session.lastSeenAt) %></td>
+            <td><%= dt(session.expiresAt) %></td>
+            <td>
+              <form method="post" action="/admin/users/<%= user.id %>/sessions/<%= session.id %>/kick">
+                <button type="submit" class="btn btn-secondary btn-sm" data-confirm="Завершить только эту сессию?">Кик</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <h2 class="card-title" style="margin:0;">Логи входа</h2>
+    <span class="badge badge-muted"><%= loginEvents.length %> записей</span>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Событие</th>
+          <th>Статус</th>
+          <th>Устройство</th>
+          <th>Платформа / App</th>
+          <th>IP</th>
+          <th>Причина</th>
+          <th>Session</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!loginEvents.length) { %>
+          <tr><td colspan="8" style="text-align:center; color:var(--text-faint); padding: 18px;">Логов пока нет</td></tr>
+        <% } %>
+        <% loginEvents.forEach((item) => { %>
+          <tr>
+            <td><%= dt(item.createdAt) %></td>
+            <td><span class="badge badge-muted"><%= item.action %></span></td>
+            <td>
+              <% if (item.success) { %>
+                <span class="badge badge-success">OK</span>
+              <% } else { %>
+                <span class="badge badge-danger">FAIL</span>
+              <% } %>
+            </td>
+            <td><%= item.device || '—' %></td>
+            <td><%= item.platform || '—' %> / <%= item.appName || '—' %></td>
+            <td class="mono"><%= item.ipAddress || '—' %></td>
+            <td><%= item.reason || '—' %></td>
+            <td class="mono"><%= item.sessionId ? shortId(item.sessionId) : '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
