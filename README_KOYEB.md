@@ -176,7 +176,9 @@ Terminal 1:
 Terminal 2:
 
 ```powershell
-cloudflared tunnel --url http://localhost:5055
+$empty = "$env:TEMP\ai-friendly-empty-cloudflared.yml"
+Set-Content -Path $empty -Value "" -Encoding ASCII
+cloudflared --config "$empty" tunnel --url http://127.0.0.1:5055 --no-autoupdate
 ```
 
 Koyeb env:

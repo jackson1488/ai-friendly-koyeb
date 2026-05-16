@@ -16,12 +16,14 @@ if (-not $Token) {
 $env:SEED_DIR = (Resolve-Path $SeedDir).Path
 $env:SEED_PORT = "$Port"
 $env:SEED_TOKEN = $Token
+$emptyCloudflaredConfig = Join-Path $env:TEMP "ai-friendly-empty-cloudflared.yml"
+Set-Content -Path $emptyCloudflaredConfig -Value "" -Encoding ASCII
 
 Write-Host "Seed token for Koyeb env:"
 Write-Host $Token
 Write-Host ""
 Write-Host "Start this server, then in another terminal run:"
-Write-Host "cloudflared tunnel --url http://localhost:$Port"
+Write-Host "cloudflared --config `"$emptyCloudflaredConfig`" tunnel --url http://127.0.0.1:$Port --no-autoupdate"
 Write-Host ""
 Write-Host "Koyeb env example after cloudflared gives URL:"
 Write-Host "DATABASE_SEED_URL=https://YOUR-TUNNEL.trycloudflare.com/prod-for-koyeb.db"
