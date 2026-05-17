@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'Конфиг системы' }) %>
+﻿<%- include('partials/header', { title: 'Конфиг системы' }) %>
 
 <div class="admin-page-head">
   <div>
@@ -7,15 +7,15 @@
       <span class="badge badge-muted">OpenRouter</span>
       <span class="badge badge-muted">Language Policy</span>
     </div>
-    <p class="meta">Центральные настройки модели, ключей, промптов и языковой политики Alma.</p>
+    <p class="meta">Центральные настройки обычного AI-чата: модель, OpenRouter ключ, промпты и языковая политика Alma.</p>
   </div>
 </div>
 
 <div class="card admin-card">
   <form method="post" action="/admin/config" class="admin-form">
     <div class="admin-section">
-      <h3 class="admin-section-title">1) Настройки ИИ</h3>
-      <p class="hint">В списке указаны бесплатные модели OpenRouter (free). Если нужна другая, выберите "Своя модель" и введите вручную.</p>
+      <h3 class="admin-section-title">1) Настройки модели</h3>
+      <p class="hint">Эти параметры относятся к обычному AI-чату и fallback-сценариям. PRO/Qwen ключи настраиваются отдельно в разделе PRO конфиг.</p>
 
       <div class="form-group">
         <label class="form-label">Быстрый выбор модели</label>
@@ -28,32 +28,30 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Модель OpenRouter (вручную)</label>
-        <input class="form-input" id="openrouterModel" name="openrouterModel" value="<%= config.openrouterModel %>" placeholder="например: openai/gpt-4o-mini" />
+        <label class="form-label">Модель OpenRouter вручную</label>
+        <input class="form-input" id="openrouterModel" name="openrouterModel" value="<%= config.openrouterModel %>" placeholder="например: openrouter/auto" />
       </div>
 
-      <p class="hint">
-        Изменения модели применяются сразу для новых сообщений. Если текущая модель или ключ недоступны,
-        пользователи увидят мягкое сообщение о недоступности ИИ без экрана ошибки.
-      </p>
+      <p class="hint">Изменения применяются к новым сообщениям. Если ключ или модель недоступны, пользователь увидит мягкое сообщение о недоступности AI без падения приложения.</p>
     </div>
 
     <div class="admin-section">
       <h3 class="admin-section-title">2) API-ключ OpenRouter</h3>
       <% if (openrouterApiKeyMasked) { %>
-        <p class="hint">Сейчас используется ключ из БД: <code><%= openrouterApiKeyMasked %></code></p>
+        <p class="hint">Сейчас используется ключ из базы данных: <code><%= openrouterApiKeyMasked %></code></p>
       <% } else { %>
-        <p class="hint">Ключ в БД пока не сохранен. Если ключ есть в .env, сервер использует его.</p>
+        <p class="hint">Ключ в базе данных пока не сохранен. Для Koyeb это нормально: вставь ключ сюда после деплоя, без env.</p>
       <% } %>
 
       <div class="form-group">
-        <label class="form-label">Новый API-ключ (оставьте пустым, чтобы не менять)</label>
+        <label class="form-label">Новый API-ключ</label>
         <input class="form-input" name="openrouterApiKey" value="" placeholder="sk-or-v1-..." autocomplete="off" />
+        <p class="hint">Оставь поле пустым, если не хочешь менять текущий ключ.</p>
       </div>
 
       <label class="checkbox-row">
         <input class="form-input" type="checkbox" name="clearOpenrouterApiKey" value="true" />
-        Очистить ключ из БД и использовать ключ из .env (если он задан)
+        Очистить OpenRouter ключ из базы данных
       </label>
     </div>
 
@@ -83,7 +81,7 @@
       </label>
 
       <div class="form-group">
-        <label class="form-label">Разрешённые языки</label>
+        <label class="form-label">Разрешенные языки</label>
         <div class="admin-checkbox-grid">
           <% (languageOptions || []).forEach((item) => { %>
             <label class="checkbox-row" style="margin:0;">
@@ -101,10 +99,10 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Сообщение при неподдерживаемом языке (на английском)</label>
+        <label class="form-label">Сообщение при неподдерживаемом языке</label>
         <textarea class="form-textarea" rows="3" name="unsupportedLanguageMessage"><%= (languagePolicy && languagePolicy.unsupportedLanguageMessage) || '' %></textarea>
       </div>
-      <p class="hint">Это сообщение отправляется пользователю сразу, без вызова ИИ, если язык не поддерживается.</p>
+      <p class="hint">Это сообщение отправляется сразу, без вызова AI, если язык пользователя не поддерживается.</p>
     </div>
 
     <div class="admin-section">
@@ -116,7 +114,7 @@
       <p class="hint">
         Расширенные параметры памяти Alma настраиваются в разделе
         <a href="/admin/memory-settings" class="table-link">Память</a>.
-        Сейчас сводка в память создаётся каждые <b><%= memorySettings.summarizeEveryMessages %></b> сообщений.
+        Сейчас сводка в память создается каждые <b><%= memorySettings.summarizeEveryMessages %></b> сообщений.
         Фильтры незначимых реплик: <a href="/admin/memory-filters" class="table-link">открыть</a>.
       </p>
     </div>
